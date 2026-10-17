@@ -2,9 +2,14 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Pokémon Brilliant Diamond — Interactive Sinnoh Route & Shiny Map",
+  title: "Bronzorienter",
   description:
-    "Interactive Sinnoh Region map for Pokémon Brilliant Diamond. Zoom into routes to inspect catchable Pokémon, Morning/Day/Night encounter rates, Poké Radar shiny odds, and track your Sinnoh checklist.",
+    "Interactive Sinnoh Region town map for Pokémon Brilliant Diamond. Navigate routes with Bronzor to inspect wild Pokémon, time-of-day encounter rates, Poké Radar shiny odds, and track caught checklists.",
+  icons: {
+    icon: "/bronzor.png",
+    shortcut: "/bronzor.png",
+    apple: "/bronzor.png",
+  },
 };
 
 export default function RootLayout({

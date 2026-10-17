@@ -9,6 +9,7 @@ import {
   MapPin,
   Eye,
   EyeOff,
+  Building2,
 } from "lucide-react";
 import { SinnohRoute, SinnohCity, ShinySummary } from "@/types/sinnoh";
 
@@ -93,6 +94,8 @@ const TERRAIN_STYLES: Record<
 
 const MAP_WIDTH = 1098;
 const MAP_HEIGHT = 900;
+const MIN_ZOOM = 1.0;
+const MAX_ZOOM = 4.5;
 
 export default function SinnohSvgMap({
   routes,
@@ -112,8 +115,40 @@ export default function SinnohSvgMap({
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const [dragStart, setDragStart] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [hoveredRouteId, setHoveredRouteId] = useState<string | null>(null);
-  const [showAllIcons, setShowAllIcons] = useState<boolean>(true);
+  const [expandedRouteId, setExpandedRouteId] = useState<string | null>(selectedRouteId);
+  const [showRoutePins, setShowRoutePins] = useState<boolean>(true);
   const [showCityLabels, setShowCityLabels] = useState<boolean>(true);
+
+  // Sync expanded card when selectedRouteId changes externally (e.g. from search or Jump To dropdown)
+  useEffect(() => {
+    setExpandedRouteId(selectedRouteId);
+  }, [selectedRouteId]);
+
+  // Clamp pan so the user cannot drag the map off into empty space beyond its edges
+  const clampPan = useCallback(
+    (rawX: number, rawY: number, targetZoom: number) => {
+      const el = containerRef.current;
+      if (!el) return { x: rawX, y: rawY };
+
+      const rect = el.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) return { x: rawX, y: rawY };
+
+      const baseScale = Math.min(rect.width / MAP_WIDTH, rect.height / MAP_HEIGHT);
+      const renderedW = MAP_WIDTH * baseScale * targetZoom;
+      const renderedH = MAP_HEIGHT * baseScale * targetZoom;
+
+      // Small cushion when zoomed in so edge routes remain comfortable to inspect
+      const edgeAllowance = targetZoom > 1.05 ? 32 : 0;
+      const maxPanX = Math.max(0, (renderedW - rect.width) / 2 + edgeAllowance);
+      const maxPanY = Math.max(0, (renderedH - rect.height) / 2 + edgeAllowance);
+
+      return {
+        x: Math.max(-maxPanX, Math.min(maxPanX, rawX)),
+        y: Math.max(-maxPanY, Math.min(maxPanY, rawY)),
+      };
+    },
+    []
+  );
 
   // Keep refs to current zoom and pan so the native non-passive wheel listener can zoom toward the cursor
   const zoomRef = useRef(zoom);
@@ -124,6 +159,15 @@ export default function SinnohSvgMap({
   useEffect(() => {
     panRef.current = pan;
   }, [pan]);
+
+  // Re-clamp pan if window resizes
+  useEffect(() => {
+    const handleResize = () => {
+      setPan((prev) => clampPan(prev.x, prev.y, zoomRef.current));
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, [clampPan]);
 
   // Native non-passive wheel & touchpad pinch-to-zoom listener
   // Prevents browser page zoom when hovering over the map!
@@ -143,18 +187,21 @@ export default function SinnohSvgMap({
       // Touchpad pinch-to-zoom sends e.ctrlKey = true with smaller deltaY values
       const zoomStep = e.ctrlKey ? -e.deltaY * 0.015 : -e.deltaY * 0.0022;
       const oldZoom = zoomRef.current;
-      const newZoom = Math.min(4.5, Math.max(0.85, Number((oldZoom * (1 + zoomStep)).toFixed(3))));
+      const newZoom = Math.min(
+        MAX_ZOOM,
+        Math.max(MIN_ZOOM, Number((oldZoom * (1 + zoomStep)).toFixed(3)))
+      );
 
       if (newZoom === oldZoom) return;
 
-      // Adjust pan so the point under the mouse cursor stays stationary while zooming
+      // Adjust pan so the point under the mouse cursor stays stationary while zooming, then clamp to edges
       const scaleRatio = newZoom / oldZoom;
       const oldPan = panRef.current;
       const newPanX = cursorX - (cursorX - oldPan.x) * scaleRatio;
       const newPanY = cursorY - (cursorY - oldPan.y) * scaleRatio;
 
       setZoom(newZoom);
-      setPan({ x: newPanX, y: newPanY });
+      setPan(clampPan(newPanX, newPanY, newZoom));
     };
 
     const preventGesture = (e: Event) => {
@@ -170,7 +217,7 @@ export default function SinnohSvgMap({
       el.removeEventListener("gesturestart", preventGesture);
       el.removeEventListener("gesturechange", preventGesture);
     };
-  }, []);
+  }, [clampPan]);
 
   const focusOnRoute = useCallback(
     (route: SinnohRoute, targetZoom = 2.4) => {
@@ -186,9 +233,9 @@ export default function SinnohSvgMap({
       const dy = (centerY - route.y) * baseScale * targetZoom;
 
       setZoom(targetZoom);
-      setPan({ x: dx, y: dy });
+      setPan(clampPan(dx, dy, targetZoom));
     },
-    []
+    [clampPan]
   );
 
   // Trigger zoom when user clicks "Focus Map", selects from search, or double clicks
@@ -196,6 +243,7 @@ export default function SinnohSvgMap({
     if (zoomToRouteTrigger > 0) {
       const target = routes.find((r) => r.id === selectedRouteId);
       if (target) {
+        setExpandedRouteId(target.id);
         focusOnRoute(target, 2.4);
       }
     }
@@ -209,14 +257,22 @@ export default function SinnohSvgMap({
 
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!isDragging) return;
-    setPan({
-      x: e.clientX - dragStart.x,
-      y: e.clientY - dragStart.y,
-    });
+    const rawX = e.clientX - dragStart.x;
+    const rawY = e.clientY - dragStart.y;
+    setPan(clampPan(rawX, rawY, zoom));
   };
 
   const handleMouseUp = () => {
     setIsDragging(false);
+  };
+
+  const applyZoomButton = (delta: number) => {
+    const newZoom = Math.min(
+      MAX_ZOOM,
+      Math.max(MIN_ZOOM, Number((zoom + delta).toFixed(2)))
+    );
+    setZoom(newZoom);
+    setPan((prev) => clampPan(prev.x, prev.y, newZoom));
   };
 
   const resetCamera = () => {
@@ -241,10 +297,23 @@ export default function SinnohSvgMap({
   const shinyOddsShort =
     shinySummary?.four_patch_odds || shinySummary?.single_patch_odds || "1/4,096";
 
-  // Sort routes so hovered and selected routes render on top of everything else
+  // Dynamic pin and city scale so routes, icons, and text remain legible and easy to click when zoomed out
+  const pinScale = Math.max(0.75, Number((1.6 / Math.pow(zoom, 0.62)).toFixed(3)));
+  const expandedCardScale = Math.max(0.85, Number((1.3 / Math.pow(zoom, 0.45)).toFixed(3)));
+  const cityScale = Math.max(0.75, Number((1.45 / Math.pow(zoom, 0.62)).toFixed(3)));
+
+  // Sort routes so expanded, selected, and hovered routes render on top of everything else
   const sortedRoutes = [...routes].sort((a, b) => {
     const score = (r: SinnohRoute) =>
-      r.id === hoveredRouteId ? 3 : r.id === selectedRouteId ? 2 : matchesSearch(r) ? 1 : 0;
+      r.id === expandedRouteId
+        ? 4
+        : r.id === selectedRouteId
+        ? 3
+        : r.id === hoveredRouteId
+        ? 2
+        : matchesSearch(r)
+        ? 1
+        : 0;
     return score(a) - score(b);
   });
 
@@ -256,13 +325,26 @@ export default function SinnohSvgMap({
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
       style={{ touchAction: "none", overscrollBehavior: "none" }}
-      className={`relative w-full h-full overflow-hidden select-none bg-[#2398c3] ${
+      className={`relative w-full h-full overflow-hidden select-none bg-[#176f91] ${
         isDragging ? "cursor-grabbing" : "cursor-grab"
       }`}
     >
+      {/* Ambient Blurred Map Backdrop so any surrounding aspect-ratio margin blends seamlessly */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 overflow-hidden"
+      >
+        <img
+          src="/bdsp-town-map.png"
+          alt=""
+          className="w-full h-full object-cover scale-125 blur-2xl opacity-75 saturate-110"
+        />
+        <div className="absolute inset-0 bg-slate-950/20" />
+      </div>
+
       {/* Interactive Pan/Zoom SVG Canvas */}
       <div
-        className={`w-full h-full flex items-center justify-center ${
+        className={`relative w-full h-full flex items-center justify-center ${
           isDragging ? "" : "transition-transform duration-150 ease-out"
         }`}
         style={{
@@ -272,21 +354,55 @@ export default function SinnohSvgMap({
       >
         <svg
           viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`}
-          className="w-full h-full max-w-[1098px] max-h-[900px] overflow-visible"
+          className="w-full h-full overflow-visible"
         >
           <defs>
-            <filter id="cardShadow" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="#000000" floodOpacity="0.65" />
+            <filter id="cardShadow" x="-25%" y="-25%" width="150%" height="150%">
+              <feDropShadow dx="0" dy="2" stdDeviation="2.5" floodColor="#000000" floodOpacity="0.65" />
             </filter>
-            <filter id="selectedGlow" x="-30%" y="-30%" width="160%" height="160%">
-              <feDropShadow dx="0" dy="0" stdDeviation="5" floodColor="#6366f1" floodOpacity="0.9" />
+            <filter id="selectedGlow" x="-35%" y="-35%" width="170%" height="170%">
+              <feDropShadow dx="0" dy="0" stdDeviation="5" floodColor="#6366f1" floodOpacity="0.95" />
             </filter>
-            <filter id="searchGlow" x="-30%" y="-30%" width="160%" height="160%">
+            <filter id="searchGlow" x="-35%" y="-35%" width="170%" height="170%">
               <feDropShadow dx="0" dy="0" stdDeviation="6" floodColor="#facc15" floodOpacity="0.95" />
             </filter>
+
+            {/* Soft Gaussian blur for the extended map halo behind the feathered edges */}
+            <filter id="mapHaloBlur" x="-15%" y="-15%" width="130%" height="130%">
+              <feGaussianBlur stdDeviation="24" />
+            </filter>
+
+            {/* Feathered edge mask so the map image fades discretely instead of cutting off sharply */}
+            <filter id="edgeFeatherFilter" x="-10%" y="-10%" width="120%" height="120%">
+              <feGaussianBlur stdDeviation="18" />
+            </filter>
+            <mask id="mapEdgeFadeMask">
+              <rect x="-100" y="-100" width={MAP_WIDTH + 200} height={MAP_HEIGHT + 200} fill="black" />
+              <rect
+                x="18"
+                y="18"
+                width={MAP_WIDTH - 36}
+                height={MAP_HEIGHT - 36}
+                rx="32"
+                fill="white"
+                filter="url(#edgeFeatherFilter)"
+              />
+            </mask>
           </defs>
 
-          {/* ACTUAL IN-GAME POKÉMON BRILLIANT DIAMOND / SHINING PEARL SINNOH TOWN MAP */}
+          {/* Blurred Halo Continuation Underneath Map Edges */}
+          <image
+            href="/bdsp-town-map.png"
+            x={-48}
+            y={-48}
+            width={MAP_WIDTH + 96}
+            height={MAP_HEIGHT + 96}
+            preserveAspectRatio="none"
+            filter="url(#mapHaloBlur)"
+            opacity="0.85"
+          />
+
+          {/* ACTUAL IN-GAME POKÉMON BRILLIANT DIAMOND / SHINING PEARL SINNOH TOWN MAP (Feathered Edges) */}
           <image
             href="/bdsp-town-map.png"
             x="0"
@@ -294,14 +410,15 @@ export default function SinnohSvgMap({
             width={MAP_WIDTH}
             height={MAP_HEIGHT}
             preserveAspectRatio="none"
+            mask="url(#mapEdgeFadeMask)"
           />
 
-          {/* IN-GAME CITY & TOWN LABELS (placed right over the red/blue city blocks on the BDSP map) */}
+          {/* IN-GAME CITY & TOWN LABELS (dynamically scaled for legibility on zoom out) */}
           {showCityLabels &&
             cities.map((city) => (
               <g
                 key={city.id}
-                transform={`translate(${city.x}, ${city.y})`}
+                transform={`translate(${city.x}, ${city.y}) scale(${cityScale})`}
                 className="pointer-events-none"
               >
                 <rect
@@ -309,7 +426,7 @@ export default function SinnohSvgMap({
                   y={-7}
                   width={city.name.length * 5.6 + 8}
                   height={13}
-                  rx="3.5"
+                  rx="6.5"
                   fill={
                     city.size === "league"
                       ? "rgba(180, 83, 9, 0.9)"
@@ -325,7 +442,7 @@ export default function SinnohSvgMap({
                   y="2.2"
                   textAnchor="middle"
                   fill="#ffffff"
-                  fontSize="7.5"
+                  fontSize="7.2"
                   fontWeight="700"
                 >
                   {city.name}
@@ -333,294 +450,368 @@ export default function SinnohSvgMap({
               </g>
             ))}
 
-          {/* INTERACTIVE ROUTES & LANDMARKS OVERLAID ON THE EXACT IN-GAME PATHS */}
-          {sortedRoutes.map((route) => {
-            const isSelected = route.id === selectedRouteId;
-            const isHovered = route.id === hoveredRouteId;
-            const isSearchMatch = matchesSearch(route);
-            const style = TERRAIN_STYLES[route.terrain] || TERRAIN_STYLES.grassland;
+          {/* INTERACTIVE ROUTES & LANDMARKS: DYNAMICALLY SCALED ON ZOOM OUT FOR EFFORTLESS READING */}
+          {showRoutePins &&
+            sortedRoutes.map((route) => {
+              const isSelected = route.id === selectedRouteId;
+              const isExpanded = isSelected && expandedRouteId === route.id;
+              const isHovered = route.id === hoveredRouteId;
+              const isSearchMatch = matchesSearch(route);
+              const style = TERRAIN_STYLES[route.terrain] || TERRAIN_STYLES.grassland;
 
-            // Show expanded card with odds when zoomed in, hovered, or selected
-            const isDetailed = zoom >= 1.55 || isSelected || isHovered;
-            const showSprites = showAllIcons || isDetailed || isSearchMatch;
+              // Check completion status
+              const uniqueIds = Array.from(
+                new Set(route.encounters.map((e) => e.pokemon_id))
+              );
+              const allCaught =
+                uniqueIds.length > 0 &&
+                uniqueIds.every((id) => caughtPokemonIds.includes(id));
+              const anyShinyCaught = uniqueIds.some((id) =>
+                shinyCaughtIds.includes(id)
+              );
 
-            const iconsToShow = isDetailed
-              ? route.preview_pokemon.slice(0, 4)
-              : route.preview_pokemon.slice(0, 3);
+              const isNumberedRoute = route.name.startsWith("Route ");
+              const routeNum = isNumberedRoute ? route.name.replace("Route ", "") : "";
+              const shortName = route.name
+                .replace("Route ", "R")
+                .replace("Valley Windworks", "Windworks")
+                .replace("Fuego Ironworks", "Fuego")
+                .replace("Oreburgh Gate", "Ore. Gate")
+                .replace("Wayward Cave", "Wayward")
+                .replace("Trophy Garden", "Trophy Gdn")
+                .replace("Great Marsh", "Gt. Marsh")
+                .replace("Victory Road", "Victory Rd")
+                .replace("Stark Mountain", "Stark Mtn")
+                .replace("Eterna Forest", "Eterna For.")
+                .replace("Ravaged Path", "Ravaged")
+                .replace("Oreburgh Mine", "Ore. Mine")
+                .replace("Ruins of Alph", "Ruins")
+                .replace("Solaceon Ruins", "Sol. Ruins")
+                .replace("Sendoff Spring", "Sendoff")
+                .replace("Snowpoint Temple", "Snow. Tmpl");
 
-            // Check completion status
-            const uniqueIds = Array.from(
-              new Set(route.encounters.map((e) => e.pokemon_id))
-            );
-            const allCaught =
-              uniqueIds.length > 0 &&
-              uniqueIds.every((id) => caughtPokemonIds.includes(id));
-            const anyShinyCaught = uniqueIds.some((id) =>
-              shinyCaughtIds.includes(id)
-            );
+              const iconsToShow = route.preview_pokemon.slice(0, 4);
+              const expandedW = 90;
+              const expandedH = 52;
+              const circleRadius = isHovered || isSearchMatch ? 12 : 10.5;
+              const landmarkPillW = Math.max(30, shortName.length * 4.5 + 8);
 
-            const shortName = route.name
-              .replace("Route ", "R")
-              .replace("Valley Windworks", "Windworks")
-              .replace("Fuego Ironworks", "Fuego")
-              .replace("Oreburgh Gate", "Ore. Gate")
-              .replace("Wayward Cave", "Wayward")
-              .replace("Trophy Garden", "Trophy Gdn")
-              .replace("Great Marsh", "Gt. Marsh")
-              .replace("Victory Road", "Victory Rd")
-              .replace("Stark Mountain", "Stark Mtn");
-
-            const cardW = isDetailed ? 84 : showSprites ? 56 : Math.max(34, shortName.length * 5.2 + 8);
-            const cardH = isDetailed ? 48 : showSprites ? 30 : 15;
-
-            return (
-              <g
-                key={route.id}
-                transform={`translate(${route.x}, ${route.y})`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onSelectRoute(route.id);
-                }}
-                onDoubleClick={(e) => {
-                  e.stopPropagation();
-                  onSelectRoute(route.id);
-                  focusOnRoute(route, 2.4);
-                }}
-                onMouseEnter={() => setHoveredRouteId(route.id)}
-                onMouseLeave={() => setHoveredRouteId(null)}
-                className="cursor-pointer"
-              >
-                {/* Exact In-Game Route Path Highlight Box */}
-                <rect
-                  x={-route.width / 2}
-                  y={-route.height / 2}
-                  width={route.width}
-                  height={route.height}
-                  rx="5"
-                  fill={
-                    isSelected
-                      ? "rgba(99, 102, 241, 0.35)"
-                      : isHovered
-                      ? "rgba(255, 255, 255, 0.3)"
-                      : isSearchMatch
-                      ? "rgba(250, 204, 21, 0.4)"
-                      : "rgba(255, 255, 255, 0.01)"
-                  }
-                  stroke={
-                    isSearchMatch
-                      ? "#facc15"
-                      : isSelected
-                      ? "#818cf8"
-                      : isHovered
-                      ? "#ffffff"
-                      : "rgba(255, 255, 255, 0.25)"
-                  }
-                  strokeWidth={isSelected || isHovered || isSearchMatch ? 2.2 : 1}
-                  strokeDasharray={isSelected || isHovered ? undefined : "3 2"}
-                />
-
-                {/* Route Badge & Pokémon Icons Floating Pill */}
+              return (
                 <g
-                  filter={
-                    isSearchMatch
-                      ? "url(#searchGlow)"
-                      : isSelected
-                      ? "url(#selectedGlow)"
-                      : "url(#cardShadow)"
-                  }
-                >
-                  <rect
-                    x={-cardW / 2}
-                    y={-cardH / 2}
-                    width={cardW}
-                    height={cardH}
-                    rx="6"
-                    fill={isSelected ? "rgba(30, 27, 75, 0.96)" : style.fill}
-                    stroke={
-                      isSearchMatch
-                        ? "#facc15"
-                        : isSelected
-                        ? "#a5b4fc"
-                        : isHovered
-                        ? "#ffffff"
-                        : style.stroke
+                  key={route.id}
+                  transform={`translate(${route.x}, ${route.y})`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (isSelected) {
+                      // Toggle the on-map expanded card if clicking the already selected route
+                      setExpandedRouteId((prev) => (prev === route.id ? null : route.id));
+                    } else {
+                      onSelectRoute(route.id);
+                      setExpandedRouteId(route.id);
                     }
-                    strokeWidth={isSelected || isSearchMatch ? 1.8 : 1.1}
-                  />
+                  }}
+                  onDoubleClick={(e) => {
+                    e.stopPropagation();
+                    onSelectRoute(route.id);
+                    setExpandedRouteId(route.id);
+                    focusOnRoute(route, 2.4);
+                  }}
+                  onMouseEnter={() => setHoveredRouteId(route.id)}
+                  onMouseLeave={() => setHoveredRouteId(null)}
+                  className="cursor-pointer"
+                >
+                  {/* Exact Route path highlight box on Sinnoh map */}
+                  {isExpanded && (
+                    <rect
+                      x={-route.width / 2}
+                      y={-route.height / 2}
+                      width={route.width}
+                      height={route.height}
+                      rx="8"
+                      fill="rgba(99, 102, 241, 0.22)"
+                      stroke="#818cf8"
+                      strokeWidth="1.6"
+                      strokeDasharray="3 2"
+                    />
+                  )}
 
-                  {/* Route Title Header */}
-                  <rect
-                    x={-cardW / 2}
-                    y={-cardH / 2}
-                    width={cardW}
-                    height={showSprites ? 11.5 : cardH}
-                    rx={showSprites ? "5" : "6"}
-                    fill={isSelected ? "#4338ca" : style.badgeBg}
-                  />
-                  <text
-                    x="0"
-                    y={showSprites ? -cardH / 2 + 8.3 : 2.5}
-                    textAnchor="middle"
-                    fill="#ffffff"
-                    fontSize={isDetailed ? "7.2" : "6.8"}
-                    fontWeight="800"
-                  >
-                    {isDetailed ? route.name.replace("Route ", "R") : shortName}
-                    {allCaught ? " ✓" : ""}
-                    {anyShinyCaught ? " ✨" : ""}
-                  </text>
+                  {/* Pin Content: Dynamically Scaled so it remains clear and readable at any zoom level */}
+                  <g transform={`scale(${isExpanded ? expandedCardScale : pinScale})`}>
+                    {isExpanded ? (
+                      /* EXPANDED CARD: ONLY RENDERED FOR THE CLICKED / ACTIVE ROUTE */
+                      <g filter="url(#selectedGlow)">
+                        {/* Expanded Card Container */}
+                        <rect
+                          x={-expandedW / 2}
+                          y={-expandedH / 2}
+                          width={expandedW}
+                          height={expandedH}
+                          rx="9"
+                          fill="rgba(30, 27, 75, 0.96)"
+                          stroke={isSearchMatch ? "#facc15" : "#a5b4fc"}
+                          strokeWidth="1.8"
+                        />
 
-                  {/* Pokémon Icons inside the Route Pin */}
-                  {showSprites && (
-                    <g transform={`translate(0, ${isDetailed ? 1 : 4.5})`}>
-                      {iconsToShow.map((poke, idx) => {
-                        const count = iconsToShow.length;
-                        const spacing = isDetailed ? 19 : 15;
-                        const offsetX = (idx - (count - 1) / 2) * spacing;
-                        return (
-                          <g
-                            key={poke.pokemon_id}
-                            transform={`translate(${offsetX}, 0)`}
-                          >
-                            <image
-                              href={
-                                showShinySprites
-                                  ? poke.shiny_sprite_url
-                                  : poke.sprite_url
-                              }
-                              x={isDetailed ? -10 : -8.5}
-                              y={isDetailed ? -10 : -8.5}
-                              width={isDetailed ? 20 : 17}
-                              height={isDetailed ? 20 : 17}
-                              className="pixelated"
-                            />
-                            {isDetailed && (
-                              <text
-                                x="0"
-                                y="11"
-                                textAnchor="middle"
-                                fill="#f8fafc"
-                                fontSize="5.5"
-                                fontWeight="800"
-                                style={{ textShadow: "0px 1px 2px #000" }}
+                        {/* Expanded Card Header */}
+                        <rect
+                          x={-expandedW / 2}
+                          y={-expandedH / 2}
+                          width={expandedW}
+                          height={13}
+                          rx="8"
+                          fill="#4338ca"
+                        />
+                        <text
+                          x="0"
+                          y={-expandedH / 2 + 9.2}
+                          textAnchor="middle"
+                          fill="#ffffff"
+                          fontSize="7.2"
+                          fontWeight="800"
+                        >
+                          {route.name.replace("Route ", "Route ")}
+                          {allCaught ? " ✓" : ""}
+                          {anyShinyCaught ? " ✨" : ""}
+                        </text>
+
+                        {/* Preview Pokémon Sprites & Encounter Rates */}
+                        <g transform="translate(0, 1.5)">
+                          {iconsToShow.map((poke, idx) => {
+                            const count = iconsToShow.length;
+                            const spacing = 20;
+                            const offsetX = (idx - (count - 1) / 2) * spacing;
+                            return (
+                              <g
+                                key={poke.pokemon_id}
+                                transform={`translate(${offsetX}, 0)`}
                               >
-                                {poke.active_rate}%
-                              </text>
-                            )}
-                          </g>
-                        );
-                      })}
-                    </g>
-                  )}
+                                <image
+                                  href={
+                                    showShinySprites
+                                      ? poke.shiny_sprite_url
+                                      : poke.sprite_url
+                                  }
+                                  x={-10}
+                                  y={-10}
+                                  width={20}
+                                  height={20}
+                                  className="pixelated"
+                                />
+                                <text
+                                  x="0"
+                                  y="11.5"
+                                  textAnchor="middle"
+                                  fill="#f8fafc"
+                                  fontSize="5.5"
+                                  fontWeight="800"
+                                  style={{ textShadow: "0px 1px 2px #000" }}
+                                >
+                                  {poke.active_rate}%
+                                </text>
+                              </g>
+                            );
+                          })}
+                        </g>
 
-                  {/* Shiny Odds Footer when zoomed in or selected */}
-                  {isDetailed && (
-                    <g transform={`translate(0, ${cardH / 2 - 4.5})`}>
-                      <rect
-                        x={-cardW / 2 + 4}
-                        y={-4}
-                        width={cardW - 8}
-                        height={7.5}
-                        rx="3"
-                        fill="rgba(15, 23, 42, 0.9)"
-                      />
-                      <text
-                        x="0"
-                        y="1.5"
-                        textAnchor="middle"
-                        fill="#fde047"
-                        fontSize="5"
-                        fontWeight="700"
+                        {/* Shiny Odds & Species Count Footer */}
+                        <g transform={`translate(0, ${expandedH / 2 - 5})`}>
+                          <rect
+                            x={-expandedW / 2 + 4}
+                            y={-4}
+                            width={expandedW - 8}
+                            height={8}
+                            rx="4"
+                            fill="rgba(15, 23, 42, 0.92)"
+                          />
+                          <text
+                            x="0"
+                            y="1.6"
+                            textAnchor="middle"
+                            fill="#fde047"
+                            fontSize="5.2"
+                            fontWeight="700"
+                          >
+                            ✨ {shinyOddsShort} • {route.total_species} spp.
+                          </text>
+                        </g>
+                      </g>
+                    ) : (
+                      /* COLLAPSED DEFAULT: SIMPLE ROUND ICON WITH THE ROUTE NAME */
+                      <g
+                        filter={
+                          isSearchMatch
+                            ? "url(#searchGlow)"
+                            : isSelected
+                            ? "url(#selectedGlow)"
+                            : "url(#cardShadow)"
+                        }
                       >
-                        ✨ {shinyOddsShort} • {route.total_species} spp.
-                      </text>
-                    </g>
-                  )}
+                        {/* Outer Circular Icon Node */}
+                        <circle
+                          cx="0"
+                          cy="0"
+                          r={circleRadius}
+                          fill={isSelected ? "#3730a3" : style.badgeBg}
+                          stroke={
+                            isSearchMatch
+                              ? "#facc15"
+                              : isSelected
+                              ? "#a5b4fc"
+                              : isHovered
+                              ? "#ffffff"
+                              : style.stroke
+                          }
+                          strokeWidth={isSearchMatch || isSelected || isHovered ? 2 : 1.3}
+                        />
+
+                        {/* Subtle Inner Ring */}
+                        <circle
+                          cx="0"
+                          cy="0"
+                          r={circleRadius - 2.2}
+                          fill="none"
+                          stroke="rgba(255, 255, 255, 0.2)"
+                          strokeWidth="0.6"
+                        />
+
+                        {isNumberedRoute ? (
+                          /* Numbered Route Name Inside the Round Icon (e.g. R201) */
+                          <text
+                            x="0"
+                            y="2.4"
+                            textAnchor="middle"
+                            fill="#ffffff"
+                            fontSize="6.8"
+                            fontWeight="800"
+                          >
+                            R{routeNum}
+                          </text>
+                        ) : (
+                          /* Landmark Icon Center + Compact Rounded Name Pill */
+                          <>
+                            <circle
+                              cx="0"
+                              cy="-2.5"
+                              r="2.4"
+                              fill={style.stroke}
+                            />
+                            <rect
+                              x={-landmarkPillW / 2}
+                              y={3.5}
+                              width={landmarkPillW}
+                              height={9.5}
+                              rx="4.75"
+                              fill="rgba(15, 23, 42, 0.92)"
+                              stroke={isHovered || isSearchMatch ? "#ffffff" : style.stroke}
+                              strokeWidth="0.8"
+                            />
+                            <text
+                              x="0"
+                              y="10.2"
+                              textAnchor="middle"
+                              fill="#ffffff"
+                              fontSize="5.8"
+                              fontWeight="800"
+                            >
+                              {shortName}
+                            </text>
+                          </>
+                        )}
+
+                        {/* Small Completion / Shiny Indicator Dot on Circle Rim */}
+                        {(allCaught || anyShinyCaught) && (
+                          <circle
+                            cx={circleRadius * 0.72}
+                            cy={-circleRadius * 0.72}
+                            r="3.2"
+                            fill={anyShinyCaught ? "#facc15" : "#22c55e"}
+                            stroke="#0f172a"
+                            strokeWidth="0.9"
+                          />
+                        )}
+                      </g>
+                    )}
+                  </g>
                 </g>
-              </g>
-            );
-          })}
+              );
+            })}
         </svg>
       </div>
 
-      {/* Floating Map Controls (Top-Left) */}
-      <div className="absolute top-4 left-4 flex flex-col gap-2 z-10">
-        <div className="bg-slate-900/90 backdrop-blur-md border border-slate-700/80 rounded-xl p-1.5 flex flex-col gap-1 shadow-xl">
-          <button
-            onClick={() => setZoom((z) => Math.min(4.5, Number((z + 0.35).toFixed(2))))}
-            title="Zoom In"
-            className="p-2 rounded-lg hover:bg-slate-800 text-slate-200 transition flex items-center justify-center"
-          >
-            <ZoomIn className="w-4 h-4" />
-          </button>
-          <div className="text-[11px] font-mono text-center text-indigo-300 font-semibold py-0.5 border-y border-slate-800">
-            {Math.round(zoom * 100)}%
-          </div>
-          <button
-            onClick={() => setZoom((z) => Math.max(0.85, Number((z - 0.35).toFixed(2))))}
-            title="Zoom Out"
-            className="p-2 rounded-lg hover:bg-slate-800 text-slate-200 transition flex items-center justify-center"
-          >
-            <ZoomOut className="w-4 h-4" />
-          </button>
-          <button
-            onClick={resetCamera}
-            title="Reset Full Sinnoh View"
-            className="p-2 rounded-lg hover:bg-slate-800 text-slate-300 transition flex items-center justify-center border-t border-slate-800"
-          >
-            <Maximize2 className="w-4 h-4" />
-          </button>
-        </div>
+      {/* Subtle Inner Viewport Vignette so outer boundaries feel framed and discrete */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 shadow-[inset_0_0_54px_rgba(2,6,23,0.55)]"
+      />
 
-        {/* Zoom to Selected Route button */}
+      {/* Floating Map Controls (Top-Left) - Compact & Clean Micro-Toolbar */}
+      <div className="absolute top-3 left-3 z-10 flex items-center gap-1 bg-slate-900/85 backdrop-blur-md border border-slate-800 rounded-lg p-1 shadow-lg text-slate-300 select-none">
+        {/* Zoom Out on Left */}
+        <button
+          onClick={() => applyZoomButton(-0.35)}
+          title="Zoom Out"
+          className="p-1.5 rounded hover:bg-slate-800 hover:text-white transition"
+        >
+          <ZoomOut className="w-3.5 h-3.5" />
+        </button>
+        <span className="text-[10px] font-mono text-indigo-300 font-semibold px-1 min-w-[32px] text-center">
+          {Math.round(zoom * 100)}%
+        </span>
+        {/* Zoom In on Right */}
+        <button
+          onClick={() => applyZoomButton(0.35)}
+          title="Zoom In"
+          className="p-1.5 rounded hover:bg-slate-800 hover:text-white transition"
+        >
+          <ZoomIn className="w-3.5 h-3.5" />
+        </button>
+        <button
+          onClick={resetCamera}
+          title="Reset View"
+          className="p-1.5 rounded hover:bg-slate-800 hover:text-white transition"
+        >
+          <Maximize2 className="w-3.5 h-3.5" />
+        </button>
+
+        <div className="w-px h-3.5 bg-slate-800 mx-0.5" />
+
+        {/* Zoom to Selected Route */}
         <button
           onClick={() => {
             const target = routes.find((r) => r.id === selectedRouteId);
             if (target) focusOnRoute(target, 2.4);
           }}
-          className="bg-indigo-600/95 hover:bg-indigo-500 text-white text-xs font-semibold px-3 py-2 rounded-xl shadow-lg border border-indigo-400/40 flex items-center gap-1.5 backdrop-blur-md transition"
+          title="Zoom to Selected Route"
+          className="p-1.5 rounded hover:bg-indigo-600/20 text-indigo-400 hover:text-indigo-200 transition"
         >
           <MapPin className="w-3.5 h-3.5" />
-          Zoom to Route
         </button>
 
-        {/* Toggle Route Icons visibility so user can inspect the raw in-game map clearly */}
+        {/* Toggle Route Pins */}
         <button
-          onClick={() => setShowAllIcons((v) => !v)}
-          className="bg-slate-900/90 hover:bg-slate-800 text-slate-200 text-xs font-semibold px-3 py-2 rounded-xl shadow-lg border border-slate-700/80 flex items-center gap-1.5 backdrop-blur-md transition"
-          title="Switch between showing Pokémon icons on all routes vs compact route labels"
+          onClick={() => setShowRoutePins((v) => !v)}
+          title={showRoutePins ? "Hide Route Pins" : "Show Route Pins"}
+          className="p-1.5 rounded hover:bg-slate-800 transition"
         >
-          {showAllIcons ? (
-            <>
-              <EyeOff className="w-3.5 h-3.5 text-amber-400" />
-              <span>Compact Pins</span>
-            </>
+          {showRoutePins ? (
+            <EyeOff className="w-3.5 h-3.5 text-amber-400/90" />
           ) : (
-            <>
-              <Eye className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Show All Icons</span>
-            </>
+            <Eye className="w-3.5 h-3.5 text-emerald-400/90" />
           )}
         </button>
 
         {/* Toggle City Labels */}
         <button
           onClick={() => setShowCityLabels((v) => !v)}
-          className="bg-slate-900/90 hover:bg-slate-800 text-slate-300 text-[11px] font-semibold px-3 py-1.5 rounded-xl shadow-lg border border-slate-700/80 flex items-center gap-1.5 backdrop-blur-md transition"
+          title={showCityLabels ? "Hide City Names" : "Show City Names"}
+          className={`p-1.5 rounded transition ${
+            showCityLabels
+              ? "text-sky-400 hover:text-sky-200 hover:bg-slate-800"
+              : "text-slate-500 hover:text-slate-400 hover:bg-slate-800"
+          }`}
         >
-          <span>{showCityLabels ? "Hide City Names" : "Show City Names"}</span>
+          <Building2 className="w-3.5 h-3.5" />
         </button>
-      </div>
-
-      {/* Floating Legend & Tips (Bottom-Left) */}
-      <div className="absolute bottom-4 left-4 z-10 bg-slate-900/90 backdrop-blur-md border border-slate-700/80 rounded-xl px-3.5 py-2.5 shadow-xl max-w-lg">
-        <div className="flex items-center gap-2 text-xs font-semibold text-slate-200 mb-1">
-          <Compass className="w-3.5 h-3.5 text-indigo-400" />
-          <span>Official BDSP In-Game Sinnoh Town Map</span>
-        </div>
-        <p className="text-[11px] text-slate-300">
-          Pinch or scroll on the map to zoom toward your cursor • Drag to pan • Click or double-click any route to inspect its Pokémon &amp; shiny odds.
-        </p>
       </div>
     </div>
   );

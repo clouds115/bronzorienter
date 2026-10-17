@@ -243,20 +243,22 @@ export default function SinnohMapPage() {
       <header className="h-16 shrink-0 bg-slate-900/95 border-b border-slate-800 px-4 flex items-center justify-between gap-3 z-20">
         {/* Brand Title */}
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-sky-500 via-indigo-600 to-blue-800 flex items-center justify-center shadow-md shadow-indigo-500/20 border border-sky-400/40">
-            <Compass className="w-5 h-5 text-white" />
-          </div>
+          <img
+            src="/bronzor.png"
+            alt="Bronzor"
+            className="w-9 h-9 pixelated drop-shadow-md hover:scale-115 hover:rotate-12 transition-transform duration-200 cursor-pointer select-none"
+          />
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-sm sm:text-base font-extrabold tracking-tight text-white">
-                Sinnoh Interactive Map
+              <h1 className="text-sm sm:text-base font-extrabold tracking-tight text-white flex items-center gap-1.5">
+                <span>Bronzorienter</span>
               </h1>
-              <span className="hidden md:inline-block text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-500/30">
-                Brilliant Diamond
+              <span className="hidden md:inline-block text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-teal-500/20 text-teal-300 border border-teal-500/30">
+                Sinnoh BDSP
               </span>
             </div>
             <p className="text-[11px] text-slate-400 hidden sm:block">
-              Zoom into any route for wild Pokémon icons, time-of-day rates &amp; Poké Radar shiny odds
+              Interactive Sinnoh Map • Wild Encounters, Time Rates &amp; Shiny Odds
             </p>
           </div>
         </div>
@@ -399,9 +401,9 @@ export default function SinnohMapPage() {
 
           {/* Quick Route Jump Strip (Top-Right over map) */}
           {mapData && (
-            <div className="absolute top-4 right-4 z-10 flex items-center gap-2 bg-slate-900/90 backdrop-blur-md border border-slate-700/80 rounded-xl px-3 py-1.5 shadow-xl">
-              <span className="text-[11px] font-semibold text-slate-400">
-                Jump to:
+            <div className="absolute top-3 right-3 z-10 flex items-center gap-1.5 bg-slate-900/85 backdrop-blur-md border border-slate-800 rounded-lg px-2 py-1 shadow-lg">
+              <span className="text-[10px] font-medium text-slate-400 select-none">
+                Jump:
               </span>
               <select
                 value={selectedRouteId}
@@ -409,14 +411,14 @@ export default function SinnohMapPage() {
                   setSelectedRouteId(e.target.value);
                   setZoomToRouteTrigger((c) => c + 1);
                 }}
-                className="bg-slate-950 text-xs font-bold text-white border border-slate-700 rounded-lg px-2.5 py-1 outline-none focus:border-indigo-500"
+                className="bg-slate-950/90 text-[11px] font-medium text-slate-200 border border-slate-800 rounded px-1.5 py-0.5 outline-none focus:border-indigo-500 max-w-[130px] sm:max-w-[160px] truncate cursor-pointer"
               >
                 <optgroup label="Sinnoh Routes">
                   {mapData.routes
                     .filter((r) => r.category === "route")
                     .map((r) => (
                       <option key={r.id} value={r.id}>
-                        {r.name} — {r.subtitle}
+                        {r.name}
                       </option>
                     ))}
                 </optgroup>
@@ -425,7 +427,7 @@ export default function SinnohMapPage() {
                     .filter((r) => r.category === "landmark")
                     .map((r) => (
                       <option key={r.id} value={r.id}>
-                        {r.name} ({r.subtitle})
+                        {r.name}
                       </option>
                     ))}
                 </optgroup>
