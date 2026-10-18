@@ -535,8 +535,7 @@ export default function SinnohMapPage() {
                   onClick={() => setZoomToRouteTrigger((c) => c + 1)}
                   className="shrink-0 px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center gap-1 shadow transition"
                 >
-                  <MapPin className="w-3.5 h-3.5" />
-                  Focus Map
+                  <MapPin className="w-3.5 h-3.5" />                  
                 </button>
               </div>
               <p className="text-xs text-slate-300 mt-2 leading-relaxed">
@@ -553,7 +552,7 @@ export default function SinnohMapPage() {
             >
               <span className="flex items-center gap-2">
                 <SlidersHorizontal className="w-3.5 h-3.5 text-amber-400" />
-                <span>BDSP Shiny Odds Calculator</span>
+                <span>Shiny Odds</span>
                 {mapData?.shiny_summary && (
                   <span className="px-2 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-200 font-mono text-[11px]">
                     ✨ {mapData.shiny_summary.active_odds_label}
