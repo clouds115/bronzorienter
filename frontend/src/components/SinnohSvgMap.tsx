@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import {
   ZoomIn,
   ZoomOut,
@@ -134,11 +134,20 @@ export default function SinnohSvgMap({
   const [zoom, setZoom] = useState<number>(1.0);
   const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState<boolean>(false);
+  const [isWheelZooming, setIsWheelZooming] = useState<boolean>(false);
+  const wheelTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [dragStart, setDragStart] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [hoveredRouteId, setHoveredRouteId] = useState<string | null>(null);
   const [expandedRouteId, setExpandedRouteId] = useState<string | null>(selectedRouteId);
   const [showRoutePins, setShowRoutePins] = useState<boolean>(true);
   const [showCityLabels, setShowCityLabels] = useState<boolean>(true);
+
+  // Clear interaction timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (wheelTimeoutRef.current) clearTimeout(wheelTimeoutRef.current);
+    };
+  }, []);
 
   // Sync expanded card when selectedRouteId changes externally (e.g. from search or Jump To dropdown)
   useEffect(() => {
@@ -171,8 +180,46 @@ export default function SinnohSvgMap({
     []
   );
 
-  // Ref to distinguish taps from pans/drags on touch & mouse
+  // Ref to distinguish taps/clicks from pans/drags on touch & mouse
   const didDragRef = useRef<boolean>(false);
+  const isMouseDownRef = useRef<boolean>(false);
+  const dragStartPosRef = useRef<{ clientX: number; clientY: number }>({ clientX: 0, clientY: 0 });
+
+  // RAF (requestAnimationFrame) throttled pan updater to ensure smooth 60-120fps with zero redundant renders
+  const rafIdRef = useRef<number | null>(null);
+  const pendingPanRef = useRef<{ x: number; y: number } | null>(null);
+
+  const schedulePan = useCallback((nextPan: { x: number; y: number }) => {
+    pendingPanRef.current = nextPan;
+    if (rafIdRef.current === null) {
+      rafIdRef.current = requestAnimationFrame(() => {
+        if (pendingPanRef.current) {
+          setPan(pendingPanRef.current);
+          pendingPanRef.current = null;
+        }
+        rafIdRef.current = null;
+      });
+    }
+  }, []);
+
+  const flushPendingPan = useCallback(() => {
+    if (rafIdRef.current !== null) {
+      cancelAnimationFrame(rafIdRef.current);
+      rafIdRef.current = null;
+    }
+    if (pendingPanRef.current) {
+      setPan(pendingPanRef.current);
+      pendingPanRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (rafIdRef.current !== null) {
+        cancelAnimationFrame(rafIdRef.current);
+      }
+    };
+  }, []);
 
   // Keep refs to current zoom and pan so the native non-passive wheel & touch listeners can zoom toward the cursor/pinch
   const zoomRef = useRef(zoom);
@@ -224,8 +271,14 @@ export default function SinnohSvgMap({
       const newPanX = cursorX - (cursorX - oldPan.x) * scaleRatio;
       const newPanY = cursorY - (cursorY - oldPan.y) * scaleRatio;
 
+      setIsWheelZooming(true);
+      if (wheelTimeoutRef.current) clearTimeout(wheelTimeoutRef.current);
+      wheelTimeoutRef.current = setTimeout(() => {
+        setIsWheelZooming(false);
+      }, 140);
+
       setZoom(newZoom);
-      setPan(clampPan(newPanX, newPanY, newZoom));
+      schedulePan(clampPan(newPanX, newPanY, newZoom));
     };
 
     const preventGesture = (e: Event) => {
@@ -255,7 +308,7 @@ export default function SinnohSvgMap({
         touchState.panStartX = panRef.current.x;
         touchState.panStartY = panRef.current.y;
         didDragRef.current = false;
-        setIsDragging(true);
+        // Do not set isDragging(true) yet so taps on pins are not blocked by pointer-events-none!
       } else if (e.touches.length === 2) {
         touchState.mode = "pinch";
         const t1 = e.touches[0];
@@ -282,8 +335,9 @@ export default function SinnohSvgMap({
         const dy = e.touches[0].clientY - touchState.startY;
         if (Math.hypot(dx, dy) > 6) {
           didDragRef.current = true;
+          setIsDragging(true);
         }
-        setPan(clampPan(touchState.panStartX + dx, touchState.panStartY + dy, zoomRef.current));
+        schedulePan(clampPan(touchState.panStartX + dx, touchState.panStartY + dy, zoomRef.current));
       } else if (touchState.mode === "pinch" && e.touches.length === 2 && touchState.initialPinchDist > 0) {
         didDragRef.current = true;
         const t1 = e.touches[0];
@@ -298,11 +352,12 @@ export default function SinnohSvgMap({
         const newPanX = touchState.pinchMidX - (touchState.pinchMidX - touchState.initialPanX) * scaleRatio;
         const newPanY = touchState.pinchMidY - (touchState.pinchMidY - touchState.initialPanY) * scaleRatio;
         setZoom(newZoom);
-        setPan(clampPan(newPanX, newPanY, newZoom));
+        schedulePan(clampPan(newPanX, newPanY, newZoom));
       }
     };
 
     const handleTouchEnd = (e: TouchEvent) => {
+      flushPendingPan();
       if (e.touches.length === 0) {
         touchState.mode = null;
         setIsDragging(false);
@@ -332,7 +387,7 @@ export default function SinnohSvgMap({
       el.removeEventListener("touchend", handleTouchEnd);
       el.removeEventListener("touchcancel", handleTouchEnd);
     };
-  }, [clampPan]);
+  }, [clampPan, schedulePan, flushPendingPan]);
 
   const focusOnRoute = useCallback(
     (route: SinnohRoute, targetZoom = 2.4) => {
@@ -366,23 +421,35 @@ export default function SinnohSvgMap({
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if (e.button !== 0) return;
+    isMouseDownRef.current = true;
     didDragRef.current = false;
-    setIsDragging(true);
+    dragStartPosRef.current = { clientX: e.clientX, clientY: e.clientY };
     setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging) return;
-    const rawX = e.clientX - dragStart.x;
-    const rawY = e.clientY - dragStart.y;
-    if (Math.hypot(rawX - pan.x, rawY - pan.y) > 6) {
+    if (!isMouseDownRef.current) return;
+    const moveDist = Math.hypot(
+      e.clientX - dragStartPosRef.current.clientX,
+      e.clientY - dragStartPosRef.current.clientY
+    );
+    if (moveDist > 6) {
       didDragRef.current = true;
+      if (!isDragging) {
+        setIsDragging(true);
+      }
+      const rawX = e.clientX - dragStart.x;
+      const rawY = e.clientY - dragStart.y;
+      schedulePan(clampPan(rawX, rawY, zoom));
     }
-    setPan(clampPan(rawX, rawY, zoom));
   };
 
   const handleMouseUp = () => {
-    setIsDragging(false);
+    isMouseDownRef.current = false;
+    flushPendingPan();
+    if (isDragging) {
+      setIsDragging(false);
+    }
   };
 
   const applyZoomButton = (delta: number) => {
@@ -399,19 +466,31 @@ export default function SinnohSvgMap({
     setPan({ x: 0, y: 0 });
   };
 
-  const matchesSearch = (route: SinnohRoute): boolean => {
-    if (!searchQuery.trim()) return false;
+  // Memoize search matched IDs to avoid re-searching all encounters on every pan frame
+  const searchMatchedIds = useMemo(() => {
+    if (!searchQuery.trim()) return new Set<string>();
     const q = searchQuery.toLowerCase().trim();
-    if (route.name.toLowerCase().includes(q) || route.subtitle.toLowerCase().includes(q)) {
-      return true;
+    const matched = new Set<string>();
+    for (const r of routes) {
+      if (
+        r.name.toLowerCase().includes(q) ||
+        r.subtitle.toLowerCase().includes(q) ||
+        r.encounters.some(
+          (e) =>
+            e.name.toLowerCase().includes(q) ||
+            e.types.some((t) => t.toLowerCase().includes(q)) ||
+            e.badge.toLowerCase().includes(q)
+        )
+      ) {
+        matched.add(r.id);
+      }
     }
-    return route.encounters.some(
-      (e) =>
-        e.name.toLowerCase().includes(q) ||
-        e.types.some((t) => t.toLowerCase().includes(q)) ||
-        e.badge.toLowerCase().includes(q)
-    );
-  };
+    return matched;
+  }, [routes, searchQuery]);
+
+  // Memoize caught sets for instant O(1) status lookups
+  const caughtSet = useMemo(() => new Set(caughtPokemonIds), [caughtPokemonIds]);
+  const shinySet = useMemo(() => new Set(shinyCaughtIds), [shinyCaughtIds]);
 
   const shinyOddsShort =
     shinySummary?.four_patch_odds || shinySummary?.single_patch_odds || "1/4,096";
@@ -421,20 +500,24 @@ export default function SinnohSvgMap({
   const expandedCardScale = Math.max(0.9, Number((1.25 / Math.pow(zoom, 0.35)).toFixed(3)));
   const cityScale = Math.max(0.85, Number((1.25 / Math.pow(zoom, 0.35)).toFixed(3)));
 
-  // Sort routes so expanded, selected, and hovered routes render on top of everything else
-  const sortedRoutes = [...routes].sort((a, b) => {
-    const score = (r: SinnohRoute) =>
-      r.id === expandedRouteId
-        ? 4
-        : r.id === selectedRouteId
-        ? 3
-        : r.id === hoveredRouteId
-        ? 2
-        : matchesSearch(r)
-        ? 1
-        : 0;
-    return score(a) - score(b);
-  });
+  // Sort routes so expanded, selected, and hovered routes render on top of everything else (memoized against pan/zoom)
+  const sortedRoutes = useMemo(() => {
+    return [...routes].sort((a, b) => {
+      const score = (r: SinnohRoute) =>
+        r.id === expandedRouteId
+          ? 4
+          : r.id === selectedRouteId
+          ? 3
+          : r.id === hoveredRouteId
+          ? 2
+          : searchMatchedIds.has(r.id)
+          ? 1
+          : 0;
+      return score(a) - score(b);
+    });
+  }, [routes, expandedRouteId, selectedRouteId, hoveredRouteId, searchMatchedIds]);
+
+  const isInteractingActive = isDragging || isWheelZooming;
 
   return (
     <div
@@ -461,76 +544,71 @@ export default function SinnohSvgMap({
         <div className="absolute inset-0 bg-slate-950/20" />
       </div>
 
-      {/* Interactive Pan/Zoom SVG Canvas */}
+      {/* Interactive Pan/Zoom SVG Canvas (Hardware Accelerated) */}
       <div
         className={`relative w-full h-full flex items-center justify-center ${
-          isDragging ? "" : "transition-transform duration-150 ease-out"
+          isInteractingActive ? "" : "transition-transform duration-150 ease-out"
         }`}
         style={{
-          transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+          transform: `translate3d(${pan.x}px, ${pan.y}px, 0px) scale(${zoom})`,
           transformOrigin: "center center",
+          willChange: isInteractingActive ? "transform" : "auto",
+          backfaceVisibility: "hidden",
         }}
       >
-        <svg
-          viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`}
-          className="w-full h-full overflow-visible"
-        >
-          <defs>
-            <filter id="cardShadow" x="-25%" y="-25%" width="150%" height="150%">
-              <feDropShadow dx="0" dy="2" stdDeviation="2.5" floodColor="#000000" floodOpacity="0.65" />
-            </filter>
-            <filter id="selectedGlow" x="-35%" y="-35%" width="170%" height="170%">
-              <feDropShadow dx="0" dy="0" stdDeviation="5" floodColor="#6366f1" floodOpacity="0.95" />
-            </filter>
-            <filter id="searchGlow" x="-35%" y="-35%" width="170%" height="170%">
-              <feDropShadow dx="0" dy="0" stdDeviation="6" floodColor="#facc15" floodOpacity="0.95" />
-            </filter>
+            <svg
+              viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`}
+              className="w-full h-full overflow-visible"
+            >
+              <defs>
+                <filter id="selectedGlow" x="-35%" y="-35%" width="170%" height="170%">
+                  <feDropShadow dx="0" dy="0" stdDeviation="5" floodColor="#6366f1" floodOpacity="0.95" />
+                </filter>
+                <filter id="searchGlow" x="-35%" y="-35%" width="170%" height="170%">
+                  <feDropShadow dx="0" dy="0" stdDeviation="6" floodColor="#facc15" floodOpacity="0.95" />
+                </filter>
 
-            {/* Soft Gaussian blur for the extended map halo behind the feathered edges */}
-            <filter id="mapHaloBlur" x="-15%" y="-15%" width="130%" height="130%">
-              <feGaussianBlur stdDeviation="24" />
-            </filter>
+                {/* Feathered edge mask so the map image fades softly with rounded corners into the ocean backdrop */}
+                <filter id="edgeFeatherFilter" x="-20%" y="-20%" width="140%" height="140%">
+                  <feGaussianBlur stdDeviation="9" />
+                </filter>
+                <mask
+                  id="mapEdgeFadeMask"
+                  maskUnits="userSpaceOnUse"
+                  x="-50"
+                  y="-50"
+                  width={MAP_WIDTH + 100}
+                  height={MAP_HEIGHT + 100}
+                >
+                  <rect
+                    x="-50"
+                    y="-50"
+                    width={MAP_WIDTH + 100}
+                    height={MAP_HEIGHT + 100}
+                    fill="black"
+                  />
+                  <rect
+                    x="12"
+                    y="12"
+                    width={MAP_WIDTH - 24}
+                    height={MAP_HEIGHT - 24}
+                    rx="26"
+                    fill="white"
+                    filter="url(#edgeFeatherFilter)"
+                  />
+                </mask>
+              </defs>
 
-            {/* Feathered edge mask so the map image fades discretely instead of cutting off sharply */}
-            <filter id="edgeFeatherFilter" x="-10%" y="-10%" width="120%" height="120%">
-              <feGaussianBlur stdDeviation="18" />
-            </filter>
-            <mask id="mapEdgeFadeMask">
-              <rect x="-100" y="-100" width={MAP_WIDTH + 200} height={MAP_HEIGHT + 200} fill="black" />
-              <rect
-                x="18"
-                y="18"
-                width={MAP_WIDTH - 36}
-                height={MAP_HEIGHT - 36}
-                rx="32"
-                fill="white"
-                filter="url(#edgeFeatherFilter)"
+              {/* ACTUAL IN-GAME POKÉMON BRILLIANT DIAMOND / SHINING PEARL SINNOH TOWN MAP (Feathered Edges) */}
+              <image
+                href="/bdsp-town-map.png"
+                x="0"
+                y="0"
+                width={MAP_WIDTH}
+                height={MAP_HEIGHT}
+                preserveAspectRatio="none"
+                mask="url(#mapEdgeFadeMask)"
               />
-            </mask>
-          </defs>
-
-          {/* Blurred Halo Continuation Underneath Map Edges */}
-          <image
-            href="/bdsp-town-map.png"
-            x={-48}
-            y={-48}
-            width={MAP_WIDTH + 96}
-            height={MAP_HEIGHT + 96}
-            preserveAspectRatio="none"
-            filter="url(#mapHaloBlur)"
-            opacity="0.85"
-          />
-
-          {/* ACTUAL IN-GAME POKÉMON BRILLIANT DIAMOND / SHINING PEARL SINNOH TOWN MAP (Feathered Edges) */}
-          <image
-            href="/bdsp-town-map.png"
-            x="0"
-            y="0"
-            width={MAP_WIDTH}
-            height={MAP_HEIGHT}
-            preserveAspectRatio="none"
-            mask="url(#mapEdgeFadeMask)"
-          />
 
           {/* IN-GAME CITY & TOWN LABELS: FLOATING ALL CAPS CARTOGRAPHIC TYPOGRAPHY WITH DARK SHADING */}
           {showCityLabels &&
@@ -556,10 +634,10 @@ export default function SinnohSvgMap({
                   strokeWidth="2.6"
                   strokeLinejoin="round"
                   paintOrder="stroke fill"
-                  fontSize="7.6"
+                  fontSize="7.4"
                   fontWeight="800"
-                  letterSpacing="0.1em"
-                  opacity="0.92"
+                  letterSpacing="0.08em"
+                  opacity="0.82"
                 >
                   {city.name.toUpperCase()}
                 </text>
@@ -567,23 +645,24 @@ export default function SinnohSvgMap({
             ))}
 
           {/* INTERACTIVE ROUTES & LANDMARKS: DYNAMICALLY SCALED ON ZOOM OUT FOR EFFORTLESS READING */}
-          {showRoutePins &&
-            sortedRoutes.map((route) => {
+          {showRoutePins && (
+            <g className={isInteractingActive ? "pointer-events-none" : ""}>
+              {sortedRoutes.map((route) => {
               const isSelected = route.id === selectedRouteId;
               const isExpanded = isSelected && expandedRouteId === route.id;
               const isHovered = route.id === hoveredRouteId;
-              const isSearchMatch = matchesSearch(route);
+              const isSearchMatch = searchMatchedIds.has(route.id);
               const style = TERRAIN_STYLES[route.terrain] || TERRAIN_STYLES.grassland;
 
-              // Check completion status
+              // Check completion status using pre-memoized Set lookups (O(1))
               const uniqueIds = Array.from(
                 new Set(route.encounters.map((e) => e.pokemon_id))
               );
               const allCaught =
                 uniqueIds.length > 0 &&
-                uniqueIds.every((id) => caughtPokemonIds.includes(id));
+                uniqueIds.every((id) => caughtSet.has(id));
               const anyShinyCaught = uniqueIds.some((id) =>
-                shinyCaughtIds.includes(id)
+                shinySet.has(id)
               );
 
               const isNumberedRoute = route.name.startsWith("Route ");
@@ -618,13 +697,8 @@ export default function SinnohSvgMap({
                   onClick={(e) => {
                     e.stopPropagation();
                     if (didDragRef.current) return;
-                    if (isSelected) {
-                      // Toggle the on-map expanded card if clicking the already selected route
-                      setExpandedRouteId((prev) => (prev === route.id ? null : route.id));
-                    } else {
-                      onSelectRoute(route.id);
-                      setExpandedRouteId(route.id);
-                    }
+                    onSelectRoute(route.id);
+                    setExpandedRouteId(route.id);
                   }}
                   onDoubleClick={(e) => {
                     e.stopPropagation();
@@ -752,16 +826,25 @@ export default function SinnohSvgMap({
                         </g>
                       </g>
                     ) : (
-                      /* COLLAPSED DEFAULT: SIMPLE ROUND ICON WITH THE ROUTE NAME */
+                      /* COLLAPSED DEFAULT: HIGH-PERFORMANCE PIN WITH HARDWARE-FRIENDLY VECTOR SHADOW */
                       <g
                         filter={
                           isSearchMatch
                             ? "url(#searchGlow)"
                             : isSelected
                             ? "url(#selectedGlow)"
-                            : "url(#cardShadow)"
+                            : undefined
                         }
                       >
+                        {/* High-Performance Vector Shadow (Zero filter rasterization overhead!) */}
+                        <circle
+                          cx="0"
+                          cy="2"
+                          r={circleRadius}
+                          fill="rgba(15, 23, 42, 0.45)"
+                          className="pointer-events-none"
+                        />
+
                         {/* Outer Circular Icon Node */}
                         <circle
                           cx="0"
@@ -817,22 +900,29 @@ export default function SinnohSvgMap({
                             >
                               {getLandmarkBadge(route.id, route.name)}
                             </text>
-                            <text
-                              x="0"
-                              y={circleRadius + 8.5}
-                              textAnchor="middle"
-                              fill="#f8fafc"
-                              stroke="rgba(15, 23, 42, 0.95)"
-                              strokeWidth="2.5"
-                              strokeLinejoin="round"
-                              paintOrder="stroke fill"
-                              fontSize="6.6"
-                              fontWeight="800"
-                              letterSpacing="0.02em"
-                              className="pointer-events-none"
-                            >
-                              {shortName}
-                            </text>
+                            {(() => {
+                              const isLabelOnTop =
+                                route.label_position === "top" ||
+                                route.id === "oreburgh-gate";
+                              return (
+                                <text
+                                  x="0"
+                                  y={isLabelOnTop ? -(circleRadius + 4.5) : circleRadius + 8.5}
+                                  textAnchor="middle"
+                                  fill="#f8fafc"
+                                  stroke="rgba(15, 23, 42, 0.95)"
+                                  strokeWidth="2.5"
+                                  strokeLinejoin="round"
+                                  paintOrder="stroke fill"
+                                  fontSize="6.6"
+                                  fontWeight="800"
+                                  letterSpacing="0.02em"
+                                  className="pointer-events-none"
+                                >
+                                  {shortName}
+                                </text>
+                              );
+                            })()}
                           </>
                         )}
 
@@ -853,6 +943,8 @@ export default function SinnohSvgMap({
                 </g>
               );
             })}
+            </g>
+          )}
         </svg>
       </div>
 

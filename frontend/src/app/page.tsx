@@ -38,7 +38,7 @@ const METHOD_META: Record<
   { label: string; color: string; icon: React.ReactNode }
 > = {
   grass: {
-    label: "Walking / Tall Grass",
+    label: "Tall Grass",
     color: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
     icon: <Footprints className="w-3.5 h-3.5" />,
   },
@@ -48,7 +48,7 @@ const METHOD_META: Record<
     icon: <Mountain className="w-3.5 h-3.5" />,
   },
   surf: {
-    label: "Surfing on Water",
+    label: "Surfing",
     color: "bg-sky-500/20 text-sky-300 border-sky-500/30",
     icon: <Waves className="w-3.5 h-3.5" />,
   },
@@ -78,7 +78,7 @@ const METHOD_META: Record<
     icon: <Star className="w-3.5 h-3.5" />,
   },
   special: {
-    label: "Special / Static",
+    label: "Special",
     color: "bg-purple-500/20 text-purple-300 border-purple-500/30",
     icon: <Sparkles className="w-3.5 h-3.5" />,
   },
@@ -119,7 +119,7 @@ export default function SinnohMapPage() {
   const [masuda, setMasuda] = useState<boolean>(true);
   const [shinyCharm, setShinyCharm] = useState<boolean>(false);
   const [showShinySprites, setShowShinySprites] = useState<boolean>(false);
-  const [showCalculator, setShowCalculator] = useState<boolean>(true);
+  const [showCalculator, setShowCalculator] = useState<boolean>(false);
   const [mobileView, setMobileView] = useState<"map" | "details">("map");
 
   // Search & Method filter
@@ -401,6 +401,9 @@ export default function SinnohMapPage() {
               selectedRouteId={selectedRouteId}
               onSelectRoute={(id) => {
                 setSelectedRouteId(id);
+                if (typeof window !== "undefined" && window.innerWidth < 1024) {
+                  setMobileView("details");
+                }
               }}
               showShinySprites={showShinySprites}
               shinySummary={mapData.shiny_summary}
@@ -449,7 +452,10 @@ export default function SinnohMapPage() {
 
           {/* Mobile Floating Route Preview Drawer */}
           {selectedRoute && (
-            <div className="lg:hidden absolute bottom-2 left-2.5 right-2.5 z-20 bg-slate-900/95 backdrop-blur-md border border-slate-700/80 rounded-2xl p-2.5 shadow-2xl flex items-center justify-between gap-2 animate-in fade-in slide-in-from-bottom-2 duration-150">
+            <div
+              onClick={() => setMobileView("details")}
+              className="lg:hidden absolute bottom-2 left-2.5 right-2.5 z-20 bg-slate-900/95 backdrop-blur-md border border-slate-700/80 rounded-2xl p-2.5 shadow-2xl flex items-center justify-between gap-2 animate-in fade-in slide-in-from-bottom-2 duration-150 cursor-pointer"
+            >
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
                   <h3 className="text-xs font-bold text-white truncate">
@@ -474,7 +480,10 @@ export default function SinnohMapPage() {
                 </div>
               </div>
               <button
-                onClick={() => setMobileView("details")}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setMobileView("details");
+                }}
                 className="shrink-0 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-3 py-1.5 rounded-xl shadow flex items-center gap-1 transition"
               >
                 <span>View Tables</span>
