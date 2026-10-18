@@ -180,8 +180,10 @@ export default function SinnohSvgMap({
     []
   );
 
-  // Ref to distinguish taps from pans/drags on touch & mouse
+  // Ref to distinguish taps/clicks from pans/drags on touch & mouse
   const didDragRef = useRef<boolean>(false);
+  const isMouseDownRef = useRef<boolean>(false);
+  const dragStartPosRef = useRef<{ clientX: number; clientY: number }>({ clientX: 0, clientY: 0 });
 
   // RAF (requestAnimationFrame) throttled pan updater to ensure smooth 60-120fps with zero redundant renders
   const rafIdRef = useRef<number | null>(null);
@@ -306,7 +308,7 @@ export default function SinnohSvgMap({
         touchState.panStartX = panRef.current.x;
         touchState.panStartY = panRef.current.y;
         didDragRef.current = false;
-        setIsDragging(true);
+        // Do not set isDragging(true) yet so taps on pins are not blocked by pointer-events-none!
       } else if (e.touches.length === 2) {
         touchState.mode = "pinch";
         const t1 = e.touches[0];
@@ -333,6 +335,7 @@ export default function SinnohSvgMap({
         const dy = e.touches[0].clientY - touchState.startY;
         if (Math.hypot(dx, dy) > 6) {
           didDragRef.current = true;
+          setIsDragging(true);
         }
         schedulePan(clampPan(touchState.panStartX + dx, touchState.panStartY + dy, zoomRef.current));
       } else if (touchState.mode === "pinch" && e.touches.length === 2 && touchState.initialPinchDist > 0) {
@@ -418,24 +421,35 @@ export default function SinnohSvgMap({
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if (e.button !== 0) return;
+    isMouseDownRef.current = true;
     didDragRef.current = false;
-    setIsDragging(true);
+    dragStartPosRef.current = { clientX: e.clientX, clientY: e.clientY };
     setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging) return;
-    const rawX = e.clientX - dragStart.x;
-    const rawY = e.clientY - dragStart.y;
-    if (Math.hypot(rawX - pan.x, rawY - pan.y) > 6) {
+    if (!isMouseDownRef.current) return;
+    const moveDist = Math.hypot(
+      e.clientX - dragStartPosRef.current.clientX,
+      e.clientY - dragStartPosRef.current.clientY
+    );
+    if (moveDist > 6) {
       didDragRef.current = true;
+      if (!isDragging) {
+        setIsDragging(true);
+      }
+      const rawX = e.clientX - dragStart.x;
+      const rawY = e.clientY - dragStart.y;
+      schedulePan(clampPan(rawX, rawY, zoom));
     }
-    schedulePan(clampPan(rawX, rawY, zoom));
   };
 
   const handleMouseUp = () => {
+    isMouseDownRef.current = false;
     flushPendingPan();
-    setIsDragging(false);
+    if (isDragging) {
+      setIsDragging(false);
+    }
   };
 
   const applyZoomButton = (delta: number) => {
@@ -553,9 +567,39 @@ export default function SinnohSvgMap({
                 <filter id="searchGlow" x="-35%" y="-35%" width="170%" height="170%">
                   <feDropShadow dx="0" dy="0" stdDeviation="6" floodColor="#facc15" floodOpacity="0.95" />
                 </filter>
+
+                {/* Feathered edge mask so the map image fades softly with rounded corners into the ocean backdrop */}
+                <filter id="edgeFeatherFilter" x="-20%" y="-20%" width="140%" height="140%">
+                  <feGaussianBlur stdDeviation="9" />
+                </filter>
+                <mask
+                  id="mapEdgeFadeMask"
+                  maskUnits="userSpaceOnUse"
+                  x="-50"
+                  y="-50"
+                  width={MAP_WIDTH + 100}
+                  height={MAP_HEIGHT + 100}
+                >
+                  <rect
+                    x="-50"
+                    y="-50"
+                    width={MAP_WIDTH + 100}
+                    height={MAP_HEIGHT + 100}
+                    fill="black"
+                  />
+                  <rect
+                    x="12"
+                    y="12"
+                    width={MAP_WIDTH - 24}
+                    height={MAP_HEIGHT - 24}
+                    rx="26"
+                    fill="white"
+                    filter="url(#edgeFeatherFilter)"
+                  />
+                </mask>
               </defs>
 
-              {/* ACTUAL IN-GAME POKÉMON BRILLIANT DIAMOND / SHINING PEARL SINNOH TOWN MAP (GPU Hardware Mask) */}
+              {/* ACTUAL IN-GAME POKÉMON BRILLIANT DIAMOND / SHINING PEARL SINNOH TOWN MAP (Feathered Edges) */}
               <image
                 href="/bdsp-town-map.png"
                 x="0"
@@ -563,10 +607,7 @@ export default function SinnohSvgMap({
                 width={MAP_WIDTH}
                 height={MAP_HEIGHT}
                 preserveAspectRatio="none"
-                style={{
-                  maskImage: "radial-gradient(ellipse 96% 94% at 50% 50%, black 86%, transparent 100%)",
-                  WebkitMaskImage: "radial-gradient(ellipse 96% 94% at 50% 50%, black 86%, transparent 100%)",
-                }}
+                mask="url(#mapEdgeFadeMask)"
               />
 
           {/* IN-GAME CITY & TOWN LABELS: FLOATING ALL CAPS CARTOGRAPHIC TYPOGRAPHY WITH DARK SHADING */}
@@ -656,13 +697,8 @@ export default function SinnohSvgMap({
                   onClick={(e) => {
                     e.stopPropagation();
                     if (didDragRef.current) return;
-                    if (isSelected) {
-                      // Toggle the on-map expanded card if clicking the already selected route
-                      setExpandedRouteId((prev) => (prev === route.id ? null : route.id));
-                    } else {
-                      onSelectRoute(route.id);
-                      setExpandedRouteId(route.id);
-                    }
+                    onSelectRoute(route.id);
+                    setExpandedRouteId(route.id);
                   }}
                   onDoubleClick={(e) => {
                     e.stopPropagation();
