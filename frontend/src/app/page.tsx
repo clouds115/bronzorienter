@@ -791,7 +791,7 @@ export default function SinnohMapPage() {
                                 : "text-slate-500"
                             }
                           >
-                            🌅 M: {enc.rates.morning}%
+                            🌅{enc.rates.morning}%
                           </span>
                           <span className="text-slate-700">•</span>
                           <span
@@ -801,7 +801,7 @@ export default function SinnohMapPage() {
                                 : "text-slate-500"
                             }
                           >
-                            ☀️ D: {enc.rates.day}%
+                            ☀️{enc.rates.day}%
                           </span>
                           <span className="text-slate-700">•</span>
                           <span
@@ -811,7 +811,7 @@ export default function SinnohMapPage() {
                                 : "text-slate-500"
                             }
                           >
-                            🌙 N: {enc.rates.night}%
+                            🌙{enc.rates.night}%
                           </span>
                         </div>
                       </div>
