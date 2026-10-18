@@ -38,7 +38,7 @@ const METHOD_META: Record<
   { label: string; color: string; icon: React.ReactNode }
 > = {
   grass: {
-    label: "Walking / Tall Grass",
+    label: "Tall Grass",
     color: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
     icon: <Footprints className="w-3.5 h-3.5" />,
   },
@@ -48,7 +48,7 @@ const METHOD_META: Record<
     icon: <Mountain className="w-3.5 h-3.5" />,
   },
   surf: {
-    label: "Surfing on Water",
+    label: "Surfing",
     color: "bg-sky-500/20 text-sky-300 border-sky-500/30",
     icon: <Waves className="w-3.5 h-3.5" />,
   },
@@ -78,7 +78,7 @@ const METHOD_META: Record<
     icon: <Star className="w-3.5 h-3.5" />,
   },
   special: {
-    label: "Special / Static",
+    label: "Special",
     color: "bg-purple-500/20 text-purple-300 border-purple-500/30",
     icon: <Sparkles className="w-3.5 h-3.5" />,
   },
@@ -119,7 +119,7 @@ export default function SinnohMapPage() {
   const [masuda, setMasuda] = useState<boolean>(true);
   const [shinyCharm, setShinyCharm] = useState<boolean>(false);
   const [showShinySprites, setShowShinySprites] = useState<boolean>(false);
-  const [showCalculator, setShowCalculator] = useState<boolean>(true);
+  const [showCalculator, setShowCalculator] = useState<boolean>(false);
   const [mobileView, setMobileView] = useState<"map" | "details">("map");
 
   // Search & Method filter
