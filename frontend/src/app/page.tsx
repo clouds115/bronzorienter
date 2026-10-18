@@ -20,6 +20,8 @@ import {
   Star,
   ChevronDown,
   ChevronUp,
+  ChevronRight,
+  ListFilter,
 } from "lucide-react";
 import SinnohSvgMap from "@/components/SinnohSvgMap";
 import PokemonDetailModal from "@/components/PokemonDetailModal";
@@ -118,6 +120,7 @@ export default function SinnohMapPage() {
   const [shinyCharm, setShinyCharm] = useState<boolean>(false);
   const [showShinySprites, setShowShinySprites] = useState<boolean>(false);
   const [showCalculator, setShowCalculator] = useState<boolean>(true);
+  const [mobileView, setMobileView] = useState<"map" | "details">("map");
 
   // Search & Method filter
   const [searchQuery, setSearchQuery] = useState<string>("");
@@ -240,17 +243,17 @@ export default function SinnohMapPage() {
   return (
     <div className="flex flex-col h-screen w-screen bg-[#070b14] text-slate-100 overflow-hidden">
       {/* TOP BAR */}
-      <header className="h-16 shrink-0 bg-slate-900/95 border-b border-slate-800 px-4 flex items-center justify-between gap-3 z-20">
+      <header className="h-14 sm:h-16 shrink-0 bg-slate-900/95 border-b border-slate-800 px-2.5 sm:px-4 flex items-center justify-between gap-1.5 sm:gap-3 z-20">
         {/* Brand Title */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
           <img
             src="/bronzor.png"
             alt="Bronzor"
-            className="w-9 h-9 pixelated drop-shadow-md hover:scale-115 hover:rotate-12 transition-transform duration-200 cursor-pointer select-none"
+            className="w-7 h-7 sm:w-9 sm:h-9 pixelated drop-shadow-md hover:scale-115 hover:rotate-12 transition-transform duration-200 cursor-pointer select-none"
           />
           <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-sm sm:text-base font-extrabold tracking-tight text-white flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5">
+              <h1 className="text-xs sm:text-base font-extrabold tracking-tight text-white flex items-center gap-1">
                 <span>Bronzorienter</span>
               </h1>
               <span className="hidden md:inline-block text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-teal-500/20 text-teal-300 border border-teal-500/30">
@@ -264,14 +267,14 @@ export default function SinnohMapPage() {
         </div>
 
         {/* Search Input with Route Dropdown */}
-        <div className="relative flex-1 max-w-xs md:max-w-sm">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+        <div className="relative flex-1 min-w-0 max-w-[140px] sm:max-w-xs md:max-w-sm">
+          <Search className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400 absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search Pokémon (e.g. Shinx, Gible, Murkrow) or Route..."
-            className="w-full bg-slate-950/90 border border-slate-700/80 focus:border-indigo-500 rounded-xl pl-9 pr-8 py-1.5 text-xs text-slate-100 placeholder:text-slate-500 outline-none transition"
+            placeholder="Search Pokémon or Route..."
+            className="w-full bg-slate-950/90 border border-slate-700/80 focus:border-indigo-500 rounded-xl pl-8 sm:pl-9 pr-7 sm:pr-8 py-1 sm:py-1.5 text-xs text-slate-100 placeholder:text-slate-500 outline-none transition"
           />
           {searchQuery && (
             <button
@@ -297,6 +300,8 @@ export default function SinnohMapPage() {
                       setSelectedRouteId(r.id);
                       setZoomToRouteTrigger((c) => c + 1);
                       setSearchQuery("");
+                      // On mobile, keep on map so they see the zoomed route
+                      setMobileView("map");
                     }}
                     className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 flex items-center justify-between text-xs transition"
                   >
@@ -315,9 +320,9 @@ export default function SinnohMapPage() {
         </div>
 
         {/* Time of Day + Sprite Toggle + Tracker Summary */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
           {/* Time of Day Selector */}
-          <div className="bg-slate-950/90 border border-slate-800 rounded-xl p-1 flex items-center gap-0.5">
+          <div className="bg-slate-950/90 border border-slate-800 rounded-xl p-0.5 sm:p-1 flex items-center gap-0.5">
             {(
               [
                 { id: "morning", label: "Morning", icon: Sunrise, color: "text-amber-300" },
@@ -331,7 +336,8 @@ export default function SinnohMapPage() {
                 <button
                   key={t.id}
                   onClick={() => setTimeOfDay(t.id)}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition ${
+                  title={t.label}
+                  className={`px-1.5 sm:px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition ${
                     active
                       ? "bg-slate-800 text-white shadow-sm"
                       : "text-slate-400 hover:text-slate-200"
@@ -347,16 +353,16 @@ export default function SinnohMapPage() {
           {/* Shiny Sprite Mode Toggle */}
           <button
             onClick={() => setShowShinySprites((s) => !s)}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold border flex items-center gap-1.5 transition ${
+            className={`px-2 py-1 sm:px-3 sm:py-1.5 rounded-xl text-xs font-bold border flex items-center gap-1 transition ${
               showShinySprites
                 ? "bg-amber-500/20 border-amber-400 text-amber-300 shadow-sm shadow-amber-500/20"
                 : "bg-slate-950/90 border-slate-800 text-slate-300 hover:border-slate-700"
             }`}
-            title="Toggle between Normal and Shiny Pokémon icons on the map and route list"
+            title="Toggle between Normal and Shiny Pokémon icons"
           >
             <Sparkles className="w-3.5 h-3.5 text-amber-400" />
             <span className="hidden sm:inline">
-              {showShinySprites ? "Shiny Icons ON" : "Shiny Icons"}
+              {showShinySprites ? "Shiny" : "Shiny"}
             </span>
           </button>
 
@@ -374,9 +380,13 @@ export default function SinnohMapPage() {
       </header>
 
       {/* MAIN WORKSPACE: MAP + INSPECTOR SIDEBAR */}
-      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
         {/* LEFT/CENTER: INTERACTIVE SINNOH SVG MAP */}
-        <div className="relative flex-1 h-[48vh] lg:h-full border-b lg:border-b-0 lg:border-r border-slate-800">
+        <div
+          className={`relative flex-1 h-full border-b lg:border-b-0 lg:border-r border-slate-800 ${
+            mobileView === "map" ? "flex flex-col" : "hidden lg:flex flex-col"
+          }`}
+        >
           {loading || !mapData ? (
             <div className="w-full h-full flex flex-col items-center justify-center bg-[#07111e] text-slate-400 gap-2">
               <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
@@ -389,7 +399,9 @@ export default function SinnohMapPage() {
               routes={mapData.routes}
               cities={mapData.cities}
               selectedRouteId={selectedRouteId}
-              onSelectRoute={(id) => setSelectedRouteId(id)}
+              onSelectRoute={(id) => {
+                setSelectedRouteId(id);
+              }}
               showShinySprites={showShinySprites}
               shinySummary={mapData.shiny_summary}
               searchQuery={searchQuery}
@@ -402,7 +414,7 @@ export default function SinnohMapPage() {
           {/* Quick Route Jump Strip (Top-Right over map) */}
           {mapData && (
             <div className="absolute top-3 right-3 z-10 flex items-center gap-1.5 bg-slate-900/85 backdrop-blur-md border border-slate-800 rounded-lg px-2 py-1 shadow-lg">
-              <span className="text-[10px] font-medium text-slate-400 select-none">
+              <span className="text-[10px] font-medium text-slate-400 select-none hidden sm:inline">
                 Jump:
               </span>
               <select
@@ -411,7 +423,7 @@ export default function SinnohMapPage() {
                   setSelectedRouteId(e.target.value);
                   setZoomToRouteTrigger((c) => c + 1);
                 }}
-                className="bg-slate-950/90 text-[11px] font-medium text-slate-200 border border-slate-800 rounded px-1.5 py-0.5 outline-none focus:border-indigo-500 max-w-[130px] sm:max-w-[160px] truncate cursor-pointer"
+                className="bg-slate-950/90 text-[11px] font-medium text-slate-200 border border-slate-800 rounded px-1.5 py-0.5 outline-none focus:border-indigo-500 max-w-[110px] sm:max-w-[160px] truncate cursor-pointer"
               >
                 <optgroup label="Sinnoh Routes">
                   {mapData.routes
@@ -434,10 +446,64 @@ export default function SinnohMapPage() {
               </select>
             </div>
           )}
+
+          {/* Mobile Floating Route Preview Drawer */}
+          {selectedRoute && (
+            <div className="lg:hidden absolute bottom-2 left-2.5 right-2.5 z-20 bg-slate-900/95 backdrop-blur-md border border-slate-700/80 rounded-2xl p-2.5 shadow-2xl flex items-center justify-between gap-2 animate-in fade-in slide-in-from-bottom-2 duration-150">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5">
+                  <h3 className="text-xs font-bold text-white truncate">
+                    {selectedRoute.name}
+                  </h3>
+                  <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                    {selectedRoute.terrain}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1 mt-1">
+                  {selectedRoute.preview_pokemon.slice(0, 4).map((p) => (
+                    <img
+                      key={p.pokemon_id}
+                      src={showShinySprites ? p.shiny_sprite_url : p.sprite_url}
+                      alt={p.name}
+                      className="w-5 h-5 pixelated shrink-0"
+                    />
+                  ))}
+                  <span className="text-[10px] text-slate-400 font-medium ml-1">
+                    {selectedRoute.total_species} spp.
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={() => setMobileView("details")}
+                className="shrink-0 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-3 py-1.5 rounded-xl shadow flex items-center gap-1 transition"
+              >
+                <span>View Tables</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
         </div>
 
         {/* RIGHT SIDEBAR: ROUTE ENCOUNTERS & SHINY ODDS PANEL */}
-        <aside className="w-full lg:w-[460px] xl:w-[500px] shrink-0 h-[52vh] lg:h-full bg-slate-900/95 flex flex-col overflow-hidden">
+        <aside
+          className={`w-full lg:w-[460px] xl:w-[500px] shrink-0 h-full bg-slate-900/95 flex flex-col overflow-hidden ${
+            mobileView === "details" ? "flex" : "hidden lg:flex"
+          }`}
+        >
+          {/* Mobile Back To Map Header Bar */}
+          <div className="lg:hidden bg-slate-950 px-3 py-2 border-b border-slate-800 flex items-center justify-between shrink-0">
+            <button
+              onClick={() => setMobileView("map")}
+              className="text-xs font-bold text-indigo-400 hover:text-indigo-300 flex items-center gap-1.5 py-1 px-2.5 rounded-lg bg-indigo-600/15 border border-indigo-500/30 transition"
+            >
+              <Compass className="w-3.5 h-3.5" />
+              <span>← Back to Sinnoh Map</span>
+            </button>
+            <div className="text-[11px] font-semibold text-slate-400 truncate max-w-[160px]">
+              {selectedRoute ? selectedRoute.name : "Route Encounters"}
+            </div>
+          </div>
+
           {/* Selected Route Header */}
           {selectedRoute && (
             <div className="p-4 bg-gradient-to-b from-slate-800/80 to-slate-900 border-b border-slate-800 shrink-0">
@@ -813,6 +879,32 @@ export default function SinnohMapPage() {
           </div>
         </aside>
       </div>
+
+      {/* MOBILE BOTTOM NAVIGATION BAR */}
+      <nav className="lg:hidden shrink-0 h-13 bg-slate-950/95 border-t border-slate-800 grid grid-cols-2 p-1.5 gap-1.5 z-30 select-none">
+        <button
+          onClick={() => setMobileView("map")}
+          className={`flex items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-bold transition ${
+            mobileView === "map"
+              ? "bg-indigo-600 text-white shadow"
+              : "text-slate-400 hover:text-slate-200 hover:bg-slate-900"
+          }`}
+        >
+          <Compass className="w-4 h-4" />
+          <span>Sinnoh Map</span>
+        </button>
+        <button
+          onClick={() => setMobileView("details")}
+          className={`flex items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-bold transition ${
+            mobileView === "details"
+              ? "bg-indigo-600 text-white shadow"
+              : "text-slate-400 hover:text-slate-200 hover:bg-slate-900"
+          }`}
+        >
+          <ListFilter className="w-4 h-4" />
+          <span className="truncate">{selectedRoute ? selectedRoute.name : "Route Details"}</span>
+        </button>
+      </nav>
 
       {/* POKEAPI DETAIL MODAL */}
       <PokemonDetailModal
