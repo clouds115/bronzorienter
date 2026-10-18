@@ -185,31 +185,34 @@ export default function SinnohSvgMap({
   const isMouseDownRef = useRef<boolean>(false);
   const dragStartPosRef = useRef<{ clientX: number; clientY: number }>({ clientX: 0, clientY: 0 });
 
-  // RAF (requestAnimationFrame) throttled pan updater to ensure smooth 60-120fps with zero redundant renders
+  // RAF (requestAnimationFrame) throttled transform updater to ensure smooth 60-120fps with zero redundant renders
   const rafIdRef = useRef<number | null>(null);
-  const pendingPanRef = useRef<{ x: number; y: number } | null>(null);
+  const pendingTransformRef = useRef<{ pan: { x: number; y: number }; zoom: number } | null>(null);
 
-  const schedulePan = useCallback((nextPan: { x: number; y: number }) => {
-    pendingPanRef.current = nextPan;
+  const scheduleTransform = useCallback((nextPan: { x: number; y: number }, nextZoom: number) => {
+    pendingTransformRef.current = { pan: nextPan, zoom: nextZoom };
     if (rafIdRef.current === null) {
       rafIdRef.current = requestAnimationFrame(() => {
-        if (pendingPanRef.current) {
-          setPan(pendingPanRef.current);
-          pendingPanRef.current = null;
+        if (pendingTransformRef.current) {
+          const { pan: p, zoom: z } = pendingTransformRef.current;
+          setPan(p);
+          setZoom(z);
+          pendingTransformRef.current = null;
         }
         rafIdRef.current = null;
       });
     }
   }, []);
 
-  const flushPendingPan = useCallback(() => {
+  const flushPendingTransform = useCallback(() => {
     if (rafIdRef.current !== null) {
       cancelAnimationFrame(rafIdRef.current);
       rafIdRef.current = null;
     }
-    if (pendingPanRef.current) {
-      setPan(pendingPanRef.current);
-      pendingPanRef.current = null;
+    if (pendingTransformRef.current) {
+      setPan(pendingTransformRef.current.pan);
+      setZoom(pendingTransformRef.current.zoom);
+      pendingTransformRef.current = null;
     }
   }, []);
 
@@ -277,8 +280,7 @@ export default function SinnohSvgMap({
         setIsWheelZooming(false);
       }, 140);
 
-      setZoom(newZoom);
-      schedulePan(clampPan(newPanX, newPanY, newZoom));
+      scheduleTransform(clampPan(newPanX, newPanY, newZoom), newZoom);
     };
 
     const preventGesture = (e: Event) => {
@@ -333,13 +335,14 @@ export default function SinnohSvgMap({
       if (touchState.mode === "pan" && e.touches.length === 1) {
         const dx = e.touches[0].clientX - touchState.startX;
         const dy = e.touches[0].clientY - touchState.startY;
-        if (Math.hypot(dx, dy) > 6) {
+        if (Math.hypot(dx, dy) > 5) {
           didDragRef.current = true;
           setIsDragging(true);
         }
-        schedulePan(clampPan(touchState.panStartX + dx, touchState.panStartY + dy, zoomRef.current));
+        scheduleTransform(clampPan(touchState.panStartX + dx, touchState.panStartY + dy, zoomRef.current), zoomRef.current);
       } else if (touchState.mode === "pinch" && e.touches.length === 2 && touchState.initialPinchDist > 0) {
         didDragRef.current = true;
+        setIsDragging(true);
         const t1 = e.touches[0];
         const t2 = e.touches[1];
         const currentDist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
@@ -351,13 +354,12 @@ export default function SinnohSvgMap({
         const scaleRatio = newZoom / touchState.initialZoom;
         const newPanX = touchState.pinchMidX - (touchState.pinchMidX - touchState.initialPanX) * scaleRatio;
         const newPanY = touchState.pinchMidY - (touchState.pinchMidY - touchState.initialPanY) * scaleRatio;
-        setZoom(newZoom);
-        schedulePan(clampPan(newPanX, newPanY, newZoom));
+        scheduleTransform(clampPan(newPanX, newPanY, newZoom), newZoom);
       }
     };
 
     const handleTouchEnd = (e: TouchEvent) => {
-      flushPendingPan();
+      flushPendingTransform();
       if (e.touches.length === 0) {
         touchState.mode = null;
         setIsDragging(false);
@@ -387,7 +389,7 @@ export default function SinnohSvgMap({
       el.removeEventListener("touchend", handleTouchEnd);
       el.removeEventListener("touchcancel", handleTouchEnd);
     };
-  }, [clampPan, schedulePan, flushPendingPan]);
+  }, [clampPan, scheduleTransform, flushPendingTransform]);
 
   const focusOnRoute = useCallback(
     (route: SinnohRoute, targetZoom = 2.4) => {
@@ -440,13 +442,13 @@ export default function SinnohSvgMap({
       }
       const rawX = e.clientX - dragStart.x;
       const rawY = e.clientY - dragStart.y;
-      schedulePan(clampPan(rawX, rawY, zoom));
+      scheduleTransform(clampPan(rawX, rawY, zoom), zoom);
     }
   };
 
   const handleMouseUp = () => {
     isMouseDownRef.current = false;
-    flushPendingPan();
+    flushPendingTransform();
     if (isDragging) {
       setIsDragging(false);
     }
@@ -531,18 +533,11 @@ export default function SinnohSvgMap({
         isDragging ? "cursor-grabbing" : "cursor-grab"
       }`}
     >
-      {/* Ambient Blurred Map Backdrop so any surrounding aspect-ratio margin blends seamlessly */}
+      {/* Ambient Sinnoh Ocean Backdrop */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 overflow-hidden"
-      >
-        <img
-          src="/bdsp-town-map.png"
-          alt=""
-          className="w-full h-full object-cover scale-125 blur-2xl opacity-75 saturate-110"
-        />
-        <div className="absolute inset-0 bg-slate-950/20" />
-      </div>
+        className="pointer-events-none absolute inset-0 bg-gradient-to-br from-[#1b7699] via-[#145d7a] to-[#0c394c]"
+      />
 
       {/* Interactive Pan/Zoom SVG Canvas (Hardware Accelerated) */}
       <div
@@ -562,52 +557,39 @@ export default function SinnohSvgMap({
             >
               <defs>
                 <filter id="selectedGlow" x="-35%" y="-35%" width="170%" height="170%">
-                  <feDropShadow dx="0" dy="0" stdDeviation="5" floodColor="#6366f1" floodOpacity="0.95" />
+                  <feDropShadow dx="0" dy="0" stdDeviation="4" floodColor="#6366f1" floodOpacity="0.9" />
                 </filter>
                 <filter id="searchGlow" x="-35%" y="-35%" width="170%" height="170%">
-                  <feDropShadow dx="0" dy="0" stdDeviation="6" floodColor="#facc15" floodOpacity="0.95" />
+                  <feDropShadow dx="0" dy="0" stdDeviation="5" floodColor="#facc15" floodOpacity="0.9" />
                 </filter>
 
-                {/* Feathered edge mask so the map image fades softly with rounded corners into the ocean backdrop */}
-                <filter id="edgeFeatherFilter" x="-20%" y="-20%" width="140%" height="140%">
-                  <feGaussianBlur stdDeviation="9" />
-                </filter>
-                <mask
-                  id="mapEdgeFadeMask"
-                  maskUnits="userSpaceOnUse"
-                  x="-50"
-                  y="-50"
-                  width={MAP_WIDTH + 100}
-                  height={MAP_HEIGHT + 100}
-                >
+                {/* Vector rounded clip path for crisp, clean map borders */}
+                <clipPath id="mapRoundedClip">
                   <rect
-                    x="-50"
-                    y="-50"
-                    width={MAP_WIDTH + 100}
-                    height={MAP_HEIGHT + 100}
-                    fill="black"
-                  />
-                  <rect
-                    x="12"
-                    y="12"
-                    width={MAP_WIDTH - 24}
-                    height={MAP_HEIGHT - 24}
+                    x="4"
+                    y="4"
+                    width={MAP_WIDTH - 8}
+                    height={MAP_HEIGHT - 8}
                     rx="26"
-                    fill="white"
-                    filter="url(#edgeFeatherFilter)"
+                    ry="26"
                   />
-                </mask>
+                </clipPath>
               </defs>
 
-              {/* ACTUAL IN-GAME POKÉMON BRILLIANT DIAMOND / SHINING PEARL SINNOH TOWN MAP (Feathered Edges) */}
+              {/* HIGH-RES IN-GAME POKÉMON BRILLIANT DIAMOND / SHINING PEARL SINNOH TOWN MAP */}
               <image
-                href="/bdsp-town-map.png"
+                href="/bdsp-town-map.webp"
                 x="0"
                 y="0"
                 width={MAP_WIDTH}
                 height={MAP_HEIGHT}
                 preserveAspectRatio="none"
-                mask="url(#mapEdgeFadeMask)"
+                clipPath="url(#mapRoundedClip)"
+                style={{
+                  imageRendering: "auto",
+                  maskImage: "radial-gradient(ellipse 98% 96% at 50% 50%, black 88%, transparent 100%)",
+                  WebkitMaskImage: "radial-gradient(ellipse 98% 96% at 50% 50%, black 88%, transparent 100%)",
+                }}
               />
 
           {/* IN-GAME CITY & TOWN LABELS: FLOATING ALL CAPS CARTOGRAPHIC TYPOGRAPHY WITH DARK SHADING */}

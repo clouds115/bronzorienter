@@ -241,9 +241,9 @@ export default function SinnohMapPage() {
   }, [mapData]);
 
   return (
-    <div className="flex flex-col h-screen w-screen bg-[#070b14] text-slate-100 overflow-hidden">
+    <div className="flex flex-col h-screen h-[100dvh] w-screen bg-[#070b14] text-slate-100 overflow-hidden">
       {/* TOP BAR */}
-      <header className="h-14 sm:h-16 shrink-0 bg-slate-900/95 border-b border-slate-800 px-2.5 sm:px-4 flex items-center justify-between gap-1.5 sm:gap-3 z-20">
+      <header className="min-h-[3.5rem] sm:min-h-[4rem] shrink-0 bg-slate-900/95 border-b border-slate-800 px-2.5 sm:px-4 flex items-center justify-between gap-1.5 sm:gap-3 z-20 pt-[env(safe-area-inset-top,0px)] pb-1 sm:pb-0">
         {/* Brand Title */}
         <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
           <img
@@ -454,7 +454,7 @@ export default function SinnohMapPage() {
           {selectedRoute && (
             <div
               onClick={() => setMobileView("details")}
-              className="lg:hidden absolute bottom-2 left-2.5 right-2.5 z-20 bg-slate-900/95 backdrop-blur-md border border-slate-700/80 rounded-2xl p-2.5 shadow-2xl flex items-center justify-between gap-2 animate-in fade-in slide-in-from-bottom-2 duration-150 cursor-pointer"
+              className="lg:hidden absolute bottom-3 left-3 right-3 z-20 bg-slate-900/95 backdrop-blur-md border border-slate-700/80 rounded-2xl p-2.5 shadow-2xl flex items-center justify-between gap-2 animate-in fade-in slide-in-from-bottom-2 duration-150 cursor-pointer"
             >
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
@@ -701,7 +701,7 @@ export default function SinnohMapPage() {
           </div>
 
           {/* Scrollable List of Pokemon Available in Selected Route */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-2.5">
+          <div className="flex-1 overflow-y-auto p-4 space-y-2.5 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))]">
             {filteredEncounters.length === 0 ? (
               <div className="text-center py-12 text-slate-400 text-xs">
                 No Pokémon encounters in this route for the selected method filter.
@@ -889,10 +889,10 @@ export default function SinnohMapPage() {
       </div>
 
       {/* MOBILE BOTTOM NAVIGATION BAR */}
-      <nav className="lg:hidden shrink-0 h-13 bg-slate-950/95 border-t border-slate-800 grid grid-cols-2 p-1.5 gap-1.5 z-30 select-none">
+      <nav className="lg:hidden shrink-0 bg-slate-950/95 border-t border-slate-800 grid grid-cols-2 p-2 gap-2 z-30 select-none pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))]">
         <button
           onClick={() => setMobileView("map")}
-          className={`flex items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-bold transition ${
+          className={`flex items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-bold transition ${
             mobileView === "map"
               ? "bg-indigo-600 text-white shadow"
               : "text-slate-400 hover:text-slate-200 hover:bg-slate-900"
@@ -903,7 +903,7 @@ export default function SinnohMapPage() {
         </button>
         <button
           onClick={() => setMobileView("details")}
-          className={`flex items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-bold transition ${
+          className={`flex items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-bold transition ${
             mobileView === "details"
               ? "bg-indigo-600 text-white shadow"
               : "text-slate-400 hover:text-slate-200 hover:bg-slate-900"

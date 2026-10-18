@@ -6,11 +6,17 @@
   color-scheme: dark;
 }
 
+html,
 body {
-  background-color: #090d16;
+  height: 100%;
+  height: 100dvh;
+  margin: 0;
+  padding: 0;
+  background-color: #070b14;
   color: #f1f5f9;
   font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   overflow: hidden;
+  -webkit-text-size-adjust: 100%;
 }
 
 /* Custom sleek scrollbars */
