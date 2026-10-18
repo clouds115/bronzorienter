@@ -97,6 +97,27 @@ const MAP_HEIGHT = 900;
 const MIN_ZOOM = 1.0;
 const MAX_ZOOM = 4.5;
 
+function getLandmarkBadge(routeId: string, name: string): string {
+  switch (routeId) {
+    case "lake-verity": return "VER";
+    case "lake-valor": return "VAL";
+    case "lake-acuity": return "ACU";
+    case "oreburgh-gate": return "GATE";
+    case "valley-windworks": return "WIND";
+    case "fuego-ironworks": return "FUEGO";
+    case "eterna-forest": return "FOR.";
+    case "wayward-cave": return "CAVE";
+    case "mt-coronet": return "MTN";
+    case "trophy-garden": return "GDN";
+    case "great-marsh": return "MARSH";
+    case "iron-island": return "IRON";
+    case "victory-road": return "VIC.";
+    case "stark-mountain": return "STARK";
+    default:
+      return name.slice(0, 4).toUpperCase();
+  }
+}
+
 export default function SinnohSvgMap({
   routes,
   cities,
@@ -395,10 +416,10 @@ export default function SinnohSvgMap({
   const shinyOddsShort =
     shinySummary?.four_patch_odds || shinySummary?.single_patch_odds || "1/4,096";
 
-  // Dynamic pin and city scale so routes, icons, and text remain legible and easy to click when zoomed out
-  const pinScale = Math.max(0.75, Number((1.6 / Math.pow(zoom, 0.62)).toFixed(3)));
-  const expandedCardScale = Math.max(0.85, Number((1.3 / Math.pow(zoom, 0.45)).toFixed(3)));
-  const cityScale = Math.max(0.75, Number((1.45 / Math.pow(zoom, 0.62)).toFixed(3)));
+  // Dynamic pin and city scale so routes, icons, and text remain legible without crowding nearby nodes
+  const pinScale = Math.max(0.72, Number((1.12 / Math.pow(zoom, 0.35)).toFixed(3)));
+  const expandedCardScale = Math.max(0.85, Number((1.2 / Math.pow(zoom, 0.35)).toFixed(3)));
+  const cityScale = Math.max(0.75, Number((1.05 / Math.pow(zoom, 0.3)).toFixed(3)));
 
   // Sort routes so expanded, selected, and hovered routes render on top of everything else
   const sortedRoutes = [...routes].sort((a, b) => {
@@ -511,39 +532,36 @@ export default function SinnohSvgMap({
             mask="url(#mapEdgeFadeMask)"
           />
 
-          {/* IN-GAME CITY & TOWN LABELS (dynamically scaled for legibility on zoom out) */}
+          {/* IN-GAME CITY & TOWN LABELS: FLOATING ALL CAPS CARTOGRAPHIC TYPOGRAPHY WITH DARK SHADING */}
           {showCityLabels &&
             cities.map((city) => (
               <g
                 key={city.id}
                 transform={`translate(${city.x}, ${city.y}) scale(${cityScale})`}
-                className="pointer-events-none"
+                className="pointer-events-none select-none"
               >
-                <rect
-                  x={-city.name.length * 2.8 - 4}
-                  y={-7}
-                  width={city.name.length * 5.6 + 8}
-                  height={13}
-                  rx="6.5"
-                  fill={
-                    city.size === "league"
-                      ? "rgba(180, 83, 9, 0.9)"
-                      : city.size === "city"
-                      ? "rgba(153, 27, 27, 0.88)"
-                      : "rgba(30, 58, 138, 0.88)"
-                  }
-                  stroke="rgba(255, 255, 255, 0.75)"
-                  strokeWidth="0.9"
-                />
                 <text
                   x="0"
-                  y="2.2"
+                  y="0"
                   textAnchor="middle"
-                  fill="#ffffff"
-                  fontSize="7.2"
-                  fontWeight="700"
+                  dominantBaseline="central"
+                  fill={
+                    city.size === "league"
+                      ? "#fef08a"
+                      : city.size === "city"
+                      ? "#ffffff"
+                      : "#f1f5f9"
+                  }
+                  stroke="rgba(15, 23, 42, 0.94)"
+                  strokeWidth="2.4"
+                  strokeLinejoin="round"
+                  paintOrder="stroke fill"
+                  fontSize="6.5"
+                  fontWeight="800"
+                  letterSpacing="0.12em"
+                  opacity="0.88"
                 >
-                  {city.name}
+                  {city.name.toUpperCase()}
                 </text>
               </g>
             ))}
@@ -592,7 +610,6 @@ export default function SinnohSvgMap({
               const expandedW = 90;
               const expandedH = 52;
               const circleRadius = isHovered || isSearchMatch ? 12 : 10.5;
-              const landmarkPillW = Math.max(30, shortName.length * 4.5 + 8);
 
               return (
                 <g
@@ -786,31 +803,32 @@ export default function SinnohSvgMap({
                             R{routeNum}
                           </text>
                         ) : (
-                          /* Landmark Icon Center + Compact Rounded Name Pill */
+                          /* Landmark Badge Inside Circle + Clean Floating Label Without Bounding Box */
                           <>
-                            <circle
-                              cx="0"
-                              cy="-2.5"
-                              r="2.4"
-                              fill={style.stroke}
-                            />
-                            <rect
-                              x={-landmarkPillW / 2}
-                              y={3.5}
-                              width={landmarkPillW}
-                              height={9.5}
-                              rx="4.75"
-                              fill="rgba(15, 23, 42, 0.92)"
-                              stroke={isHovered || isSearchMatch ? "#ffffff" : style.stroke}
-                              strokeWidth="0.8"
-                            />
                             <text
                               x="0"
-                              y="10.2"
+                              y="2.2"
                               textAnchor="middle"
                               fill="#ffffff"
-                              fontSize="5.8"
+                              fontSize={getLandmarkBadge(route.id, route.name).length > 4 ? "4.6" : "5.5"}
                               fontWeight="800"
+                              letterSpacing="0.02em"
+                            >
+                              {getLandmarkBadge(route.id, route.name)}
+                            </text>
+                            <text
+                              x="0"
+                              y={circleRadius + 7}
+                              textAnchor="middle"
+                              fill="#f8fafc"
+                              stroke="rgba(15, 23, 42, 0.94)"
+                              strokeWidth="2.2"
+                              strokeLinejoin="round"
+                              paintOrder="stroke fill"
+                              fontSize="5.2"
+                              fontWeight="700"
+                              letterSpacing="0.02em"
+                              className="pointer-events-none"
                             >
                               {shortName}
                             </text>
