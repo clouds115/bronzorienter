@@ -967,16 +967,16 @@ export default function SinnohSvgMap({
                           {anyShinyCaught ? " ✨" : ""}
                         </text>
 
-                        {/* Species Count Label (Uppercase, centered, muted gray, no circle) */}
+                        {/* Species Count Label (Uppercase, on the right next to the X, muted gray) */}
                         <text
-                          x={cardX + cardW / 2}
+                          x={cardX + cardW - 20}
                           y={cardTop + 9.8}
-                          textAnchor="middle"
+                          textAnchor="end"
                           dominantBaseline="central"
                           fill="#94a3b8"
                           fontSize="4.8"
                           fontWeight="700"
-                          letterSpacing="0.06em"
+                          letterSpacing="0.05em"
                           className="select-none uppercase"
                         >
                           {route.total_species} POKÉMON
@@ -992,14 +992,14 @@ export default function SinnohSvgMap({
                           className="cursor-pointer group"
                         >
                           <rect
-                            x={cardX + cardW - 20}
+                            x={cardX + cardW - 18}
                             y={cardTop}
-                            width="20"
+                            width="18"
                             height="18"
                             fill="transparent"
                           />
                           <text
-                            x={cardX + cardW - 10}
+                            x={cardX + cardW - 9}
                             y={cardTop + 9.8}
                             textAnchor="middle"
                             dominantBaseline="central"
@@ -1052,19 +1052,19 @@ export default function SinnohSvgMap({
                                       ? poke.shiny_sprite_url
                                       : poke.sprite_url
                                   }
-                                  x={colCenter - 11}
-                                  y={cardTop + 20}
-                                  width={22}
-                                  height={22}
+                                  x={colCenter - 14}
+                                  y={cardTop + 19}
+                                  width={28}
+                                  height={28}
                                   className="pixelated select-none"
                                 />
 
                                 <text
                                   x={colCenter}
-                                  y={cardTop + 47.5}
+                                  y={cardTop + 48.5}
                                   textAnchor="middle"
                                   fill="#e2e8f0"
-                                  fontSize="4.9"
+                                  fontSize="4.8"
                                   fontWeight="700"
                                   className="select-none"
                                 >
@@ -1073,7 +1073,7 @@ export default function SinnohSvgMap({
 
                                 <rect
                                   x={colCenter - 10}
-                                  y={cardTop + 50.5}
+                                  y={cardTop + 51.5}
                                   width={20}
                                   height={7.2}
                                   rx="3"
