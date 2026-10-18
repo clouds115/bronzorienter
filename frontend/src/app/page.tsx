@@ -108,7 +108,7 @@ const TYPE_COLORS: Record<string, string> = {
 export default function SinnohMapPage() {
   const [mapData, setMapData] = useState<MapApiResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
-  const [selectedRouteId, setSelectedRouteId] = useState<string>("route-201");
+  const [selectedRouteId, setSelectedRouteId] = useState<string | null>("route-201");
   const [zoomToRouteTrigger, setZoomToRouteTrigger] = useState<number>(0);
 
   // Filters & Shiny Calculator state
@@ -194,11 +194,20 @@ export default function SinnohMapPage() {
     };
   }, [timeOfDay, shinyMethod, radarChain, diglettBonus, masuda, shinyCharm]);
 
+  // Pressing Escape deselects the current route
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setSelectedRouteId(null);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
   const selectedRoute: SinnohRoute | undefined = useMemo(() => {
-    if (!mapData) return undefined;
-    return (
-      mapData.routes.find((r) => r.id === selectedRouteId) || mapData.routes[0]
-    );
+    if (!mapData || !selectedRouteId) return undefined;
+    return mapData.routes.find((r) => r.id === selectedRouteId);
   }, [mapData, selectedRouteId]);
 
   const filteredEncounters: PokemonEncounter[] = useMemo(() => {
@@ -401,7 +410,7 @@ export default function SinnohMapPage() {
               selectedRouteId={selectedRouteId}
               onSelectRoute={(id) => {
                 setSelectedRouteId(id);
-                if (typeof window !== "undefined" && window.innerWidth < 1024) {
+                if (id && typeof window !== "undefined" && window.innerWidth < 1024) {
                   setMobileView("details");
                 }
               }}
@@ -421,13 +430,18 @@ export default function SinnohMapPage() {
                 Jump:
               </span>
               <select
-                value={selectedRouteId}
+                value={selectedRouteId || ""}
                 onChange={(e) => {
-                  setSelectedRouteId(e.target.value);
-                  setZoomToRouteTrigger((c) => c + 1);
+                  if (e.target.value) {
+                    setSelectedRouteId(e.target.value);
+                    setZoomToRouteTrigger((c) => c + 1);
+                  } else {
+                    setSelectedRouteId(null);
+                  }
                 }}
                 className="bg-slate-950/90 text-[11px] font-medium text-slate-200 border border-slate-800 rounded px-1.5 py-0.5 outline-none focus:border-indigo-500 max-w-[110px] sm:max-w-[160px] truncate cursor-pointer"
               >
+                <option value="">Jump to location...</option>
                 <optgroup label="Sinnoh Routes">
                   {mapData.routes
                     .filter((r) => r.category === "route")
@@ -514,7 +528,7 @@ export default function SinnohMapPage() {
           </div>
 
           {/* Selected Route Header */}
-          {selectedRoute && (
+          {selectedRoute ? (
             <div className="p-4 bg-gradient-to-b from-slate-800/80 to-slate-900 border-b border-slate-800 shrink-0">
               <div className="flex items-start justify-between gap-2">
                 <div>
@@ -531,15 +545,37 @@ export default function SinnohMapPage() {
                   </p>
                 </div>
 
-                <button
-                  onClick={() => setZoomToRouteTrigger((c) => c + 1)}
-                  className="shrink-0 px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center gap-1 shadow transition"
-                >
-                  <MapPin className="w-3.5 h-3.5" />                  
-                </button>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    onClick={() => setZoomToRouteTrigger((c) => c + 1)}
+                    className="px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center gap-1 shadow transition"
+                    title="Focus on Route"
+                  >
+                    <MapPin className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => setSelectedRouteId(null)}
+                    className="px-2 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold flex items-center shadow transition"
+                    title="Deselect Route"
+                  >
+                    ✕
+                  </button>
+                </div>
               </div>
               <p className="text-xs text-slate-300 mt-2 leading-relaxed">
                 {selectedRoute.description}
+              </p>
+            </div>
+          ) : (
+            <div className="p-4 bg-gradient-to-b from-slate-800/80 to-slate-900 border-b border-slate-800 shrink-0">
+              <div className="flex items-center gap-2">
+                <Compass className="w-5 h-5 text-indigo-400" />
+                <h2 className="text-lg font-extrabold text-white">
+                  Sinnoh Region Encounters
+                </h2>
+              </div>
+              <p className="text-xs text-slate-300 mt-1">
+                Click any route or landmark on the map to explore wild Pokémon encounters.
               </p>
             </div>
           )}
@@ -702,7 +738,37 @@ export default function SinnohMapPage() {
 
           {/* Scrollable List of Pokemon Available in Selected Route */}
           <div className="flex-1 overflow-y-auto p-4 space-y-2.5 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))]">
-            {filteredEncounters.length === 0 ? (
+            {!selectedRoute ? (
+              <div className="flex flex-col items-center justify-center py-10 px-4 text-center text-slate-400 space-y-4">
+                <div className="w-14 h-14 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 shadow-inner">
+                  <Compass className="w-7 h-7" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-sm font-bold text-slate-200">No Location Selected</h3>
+                  <p className="text-xs text-slate-400 max-w-[260px] leading-relaxed">
+                    Click on any route or landmark pin on the map to inspect wild Pokémon, catch rates, and shiny odds.
+                  </p>
+                </div>
+                {mapData && (
+                  <div className="w-full max-w-xs p-3.5 rounded-xl bg-slate-950/60 border border-slate-800 text-left space-y-2.5">
+                    <div className="text-[11px] font-semibold text-slate-300 flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Sinnoh Explorer Summary</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="bg-slate-900/80 rounded-lg p-2.5 border border-slate-800">
+                        <span className="text-[10px] text-slate-400 block font-medium">Total Species</span>
+                        <span className="font-bold text-slate-200 text-sm">{totalUniqueSpecies} Pokémon</span>
+                      </div>
+                      <div className="bg-slate-900/80 rounded-lg p-2.5 border border-slate-800">
+                        <span className="text-[10px] text-slate-400 block font-medium">Caught Progress</span>
+                        <span className="font-bold text-indigo-300 text-sm">{caughtIds.length} / {totalUniqueSpecies}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : filteredEncounters.length === 0 ? (
               <div className="text-center py-12 text-slate-400 text-xs">
                 No Pokémon encounters in this route for the selected method filter.
               </div>

@@ -16,8 +16,8 @@ import { SinnohRoute, SinnohCity, ShinySummary } from "@/types/sinnoh";
 interface SinnohSvgMapProps {
   routes: SinnohRoute[];
   cities: SinnohCity[];
-  selectedRouteId: string;
-  onSelectRoute: (routeId: string) => void;
+  selectedRouteId: string | null;
+  onSelectRoute: (routeId: string | null) => void;
   showShinySprites: boolean;
   shinySummary: ShinySummary | null;
   searchQuery: string;
@@ -528,6 +528,11 @@ export default function SinnohSvgMap({
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
+      onClick={() => {
+        if (didDragRef.current) return;
+        onSelectRoute(null);
+        setExpandedRouteId(null);
+      }}
       style={{ touchAction: "none", overscrollBehavior: "none" }}
       className={`relative w-full h-full overflow-hidden select-none bg-[#176f91] ${
         isDragging ? "cursor-grabbing" : "cursor-grab"
@@ -561,6 +566,11 @@ export default function SinnohSvgMap({
             <svg
               viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`}
               className="w-full h-full overflow-visible"
+              onClick={(e) => {
+                if (didDragRef.current) return;
+                onSelectRoute(null);
+                setExpandedRouteId(null);
+              }}
             >
               <defs>
                 <filter id="selectedGlow" x="-35%" y="-35%" width="170%" height="170%">
@@ -688,8 +698,20 @@ export default function SinnohSvgMap({
                 .replace("Snowpoint Temple", "Snow. Tmpl");
 
               const iconsToShow = route.preview_pokemon.slice(0, 4);
-              const expandedW = 90;
-              const expandedH = 52;
+              const cardW = 156;
+              const cardH = 68;
+              const isPlacedBelow = route.y < 125;
+              const pointerTipY = isPlacedBelow ? 16.5 : -16.5;
+              const cardTop = isPlacedBelow ? 24 : -24 - cardH;
+
+              let cardShiftX = 0;
+              if (route.x - cardW / 2 < 14) {
+                cardShiftX = 14 - (route.x - cardW / 2);
+              } else if (route.x + cardW / 2 > MAP_WIDTH - 14) {
+                cardShiftX = (MAP_WIDTH - 14) - (route.x + cardW / 2);
+              }
+              const cardX = -cardW / 2 + cardShiftX;
+
               const circleRadius = isHovered || isSearchMatch ? 13.5 : 12;
 
               return (
@@ -699,8 +721,13 @@ export default function SinnohSvgMap({
                   onClick={(e) => {
                     e.stopPropagation();
                     if (didDragRef.current) return;
-                    onSelectRoute(route.id);
-                    setExpandedRouteId(route.id);
+                    if (isSelected) {
+                      onSelectRoute(null);
+                      setExpandedRouteId(null);
+                    } else {
+                      onSelectRoute(route.id);
+                      setExpandedRouteId(route.id);
+                    }
                   }}
                   onDoubleClick={(e) => {
                     e.stopPropagation();
@@ -713,7 +740,7 @@ export default function SinnohSvgMap({
                   className="cursor-pointer"
                 >
                   {/* Exact Route path highlight box on Sinnoh map */}
-                  {isExpanded && (
+                  {isSelected && (
                     <rect
                       x={-route.width / 2}
                       y={-route.height / 2}
@@ -724,79 +751,339 @@ export default function SinnohSvgMap({
                       stroke="#818cf8"
                       strokeWidth="1.6"
                       strokeDasharray="3 2"
+                      className="pointer-events-none"
                     />
                   )}
 
-                  {/* Pin Content: Dynamically Scaled so it remains clear and readable at any zoom level */}
-                  <g transform={`scale(${isExpanded ? expandedCardScale : pinScale})`}>
-                    {isExpanded ? (
-                      /* EXPANDED CARD: ONLY RENDERED FOR THE CLICKED / ACTIVE ROUTE */
-                      <g filter="url(#selectedGlow)">
-                        {/* Expanded Card Container */}
-                        <rect
-                          x={-expandedW / 2}
-                          y={-expandedH / 2}
-                          width={expandedW}
-                          height={expandedH}
-                          rx="9"
-                          fill="rgba(30, 27, 75, 0.96)"
-                          stroke={isSearchMatch ? "#facc15" : "#a5b4fc"}
-                          strokeWidth="1.8"
-                        />
+                  {/* ROUTE PIN: ALWAYS RENDERED so map visibility and route context are NEVER lost */}
+                  <g transform={`scale(${pinScale})`}>
+                    <g
+                      filter={
+                        isSearchMatch
+                          ? "url(#searchGlow)"
+                          : isSelected
+                          ? "url(#selectedGlow)"
+                          : undefined
+                      }
+                    >
+                      {/* High-Performance Vector Shadow */}
+                      <circle
+                        cx="0"
+                        cy="2"
+                        r={circleRadius}
+                        fill="rgba(15, 23, 42, 0.45)"
+                        className="pointer-events-none"
+                      />
 
-                        {/* Expanded Card Header */}
-                        <rect
-                          x={-expandedW / 2}
-                          y={-expandedH / 2}
-                          width={expandedW}
-                          height={13}
-                          rx="8"
-                          fill="#4338ca"
+                      {/* Selected Outer Accent Glow Ring */}
+                      {isSelected && (
+                        <circle
+                          cx="0"
+                          cy="0"
+                          r={circleRadius + 4}
+                          fill="none"
+                          stroke="#818cf8"
+                          strokeWidth="1.8"
+                          strokeDasharray="3 2"
+                          opacity="0.9"
+                          className="pointer-events-none"
                         />
+                      )}
+
+                      {/* Outer Circular Icon Node */}
+                      <circle
+                        cx="0"
+                        cy="0"
+                        r={circleRadius}
+                        fill={isSelected ? "#3730a3" : style.badgeBg}
+                        stroke={
+                          isSearchMatch
+                            ? "#facc15"
+                            : isSelected
+                            ? "#a5b4fc"
+                            : isHovered
+                            ? "#ffffff"
+                            : style.stroke
+                        }
+                        strokeWidth={isSearchMatch || isSelected || isHovered ? 2 : 1.3}
+                      />
+
+                      {/* Subtle Inner Ring */}
+                      <circle
+                        cx="0"
+                        cy="0"
+                        r={circleRadius - 2.2}
+                        fill="none"
+                        stroke="rgba(255, 255, 255, 0.2)"
+                        strokeWidth="0.6"
+                      />
+
+                      {isNumberedRoute ? (
+                        /* Numbered Route Name Inside the Round Icon (e.g. R201) */
                         <text
                           x="0"
-                          y={-expandedH / 2 + 9.2}
+                          y="2.8"
                           textAnchor="middle"
                           fill="#ffffff"
-                          fontSize="7.2"
+                          fontSize="8.2"
                           fontWeight="800"
+                          letterSpacing="0.02em"
+                          className="select-none pointer-events-none"
                         >
-                          {route.name.replace("Route ", "Route ")}
-                          {allCaught ? " ✓" : ""}
-                          {anyShinyCaught ? " ✨" : ""}
+                          R{routeNum}
                         </text>
-
-                        {/* Preview Pokémon Sprites & Encounter Rates */}
-                        <g transform="translate(0, 1.5)">
-                          {iconsToShow.map((poke, idx) => {
-                            const count = iconsToShow.length;
-                            const spacing = 20;
-                            const offsetX = (idx - (count - 1) / 2) * spacing;
+                      ) : (
+                        /* Landmark Badge Inside Circle + Clean Floating Label Without Bounding Box */
+                        <>
+                          <text
+                            x="0"
+                            y="2.4"
+                            textAnchor="middle"
+                            fill="#ffffff"
+                            fontSize={getLandmarkBadge(route.id, route.name).length > 4 ? "5.4" : "6.5"}
+                            fontWeight="800"
+                            letterSpacing="0.03em"
+                            className="select-none pointer-events-none"
+                          >
+                            {getLandmarkBadge(route.id, route.name)}
+                          </text>
+                          {(() => {
+                            const isLabelOnTop =
+                              route.label_position === "top" ||
+                              route.id === "oreburgh-gate";
                             return (
-                              <g
-                                key={poke.pokemon_id}
-                                transform={`translate(${offsetX}, 0)`}
+                              <text
+                                x="0"
+                                y={isLabelOnTop ? -(circleRadius + 4.5) : circleRadius + 8.5}
+                                textAnchor="middle"
+                                fill="#f8fafc"
+                                stroke="rgba(15, 23, 42, 0.95)"
+                                strokeWidth="2.5"
+                                strokeLinejoin="round"
+                                paintOrder="stroke fill"
+                                fontSize="6.6"
+                                fontWeight="800"
+                                letterSpacing="0.02em"
+                                className="pointer-events-none select-none"
                               >
+                                {shortName}
+                              </text>
+                            );
+                          })()}
+                        </>
+                      )}
+
+                      {/* Small Completion / Shiny Indicator Dot on Circle Rim */}
+                      {(allCaught || anyShinyCaught) && (
+                        <circle
+                          cx={circleRadius * 0.72}
+                          cy={-circleRadius * 0.72}
+                          r="3.2"
+                          fill={anyShinyCaught ? "#facc15" : "#22c55e"}
+                          stroke="#0f172a"
+                          strokeWidth="0.9"
+                        />
+                      )}
+                    </g>
+                  </g>
+
+                  {/* EXPANDED ROUTE INFO CARD: ANCHORED ABOVE/BELOW PIN (NEVER OBSCURING MAP OR ROUTE) */}
+                  {isExpanded && (
+                    <g
+                      transform={`scale(${expandedCardScale})`}
+                      filter="url(#selectedGlow)"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {/* Pointer Arrow Polygon */}
+                      <polygon
+                        points={
+                          isPlacedBelow
+                            ? `-6,24 0,${pointerTipY} 6,24`
+                            : `-6,-24 0,${pointerTipY} 6,-24`
+                        }
+                        fill="rgba(15, 23, 42, 0.96)"
+                        stroke={isSearchMatch ? "#facc15" : "#818cf8"}
+                        strokeWidth="1.6"
+                      />
+
+                      {/* Main Card Container */}
+                      <rect
+                        x={cardX}
+                        y={cardTop}
+                        width={cardW}
+                        height={cardH}
+                        rx="9"
+                        fill="rgba(15, 23, 42, 0.96)"
+                        stroke={isSearchMatch ? "#facc15" : "#818cf8"}
+                        strokeWidth="1.6"
+                      />
+
+                      {/* Seam Cover (masks stroke between arrow base and card edge) */}
+                      <rect
+                        x="-5.5"
+                        y={isPlacedBelow ? 23.2 : -24.8}
+                        width="11"
+                        height="2.5"
+                        fill="rgba(15, 23, 42, 0.96)"
+                        stroke="none"
+                      />
+
+                      {/* Card Header Background */}
+                      <rect
+                        x={cardX + 1}
+                        y={cardTop + 1}
+                        width={cardW - 2}
+                        height={17}
+                        rx="8"
+                        fill="rgba(49, 46, 129, 0.5)"
+                      />
+
+                      {/* Route Title */}
+                      <text
+                        x={cardX + 8}
+                        y={cardTop + 12}
+                        fill="#ffffff"
+                        fontSize="7"
+                        fontWeight="800"
+                        letterSpacing="-0.01em"
+                        className="select-none"
+                      >
+                        {route.name}
+                        {allCaught ? " ✓" : ""}
+                        {anyShinyCaught ? " ✨" : ""}
+                      </text>
+
+                      {/* Species Count Badge */}
+                      <g transform={`translate(${cardX + cardW - 46}, ${cardTop + 4})`}>
+                        <rect
+                          x="0"
+                          y="0"
+                          width="23"
+                          height="9.5"
+                          rx="4.75"
+                          fill="rgba(30, 27, 75, 0.85)"
+                          stroke="rgba(165, 180, 252, 0.4)"
+                          strokeWidth="0.8"
+                        />
+                        <text
+                          x="11.5"
+                          y="6.8"
+                          textAnchor="middle"
+                          fill="#c7d2fe"
+                          fontSize="4.8"
+                          fontWeight="700"
+                          className="select-none"
+                        >
+                          {route.total_species} spp.
+                        </text>
+                      </g>
+
+                      {/* Close Dismiss Button "✕" */}
+                      <g
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSelectRoute(null);
+                          setExpandedRouteId(null);
+                        }}
+                        className="cursor-pointer"
+                      >
+                        <circle
+                          cx={cardX + cardW - 10}
+                          cy={cardTop + 8.75}
+                          r="5.2"
+                          fill="rgba(255, 255, 255, 0.12)"
+                          stroke="rgba(255, 255, 255, 0.25)"
+                          strokeWidth="0.8"
+                        />
+                        <text
+                          x={cardX + cardW - 10}
+                          y={cardTop + 11}
+                          textAnchor="middle"
+                          fill="#f1f5f9"
+                          fontSize="6.2"
+                          fontWeight="800"
+                          className="select-none"
+                        >
+                          ✕
+                        </text>
+                      </g>
+
+                      {/* Header Divider Line */}
+                      <line
+                        x1={cardX}
+                        y1={cardTop + 18}
+                        x2={cardX + cardW}
+                        y2={cardTop + 18}
+                        stroke="rgba(129, 140, 248, 0.25)"
+                        strokeWidth="0.8"
+                      />
+
+                      {/* Pokémon Encounter Previews */}
+                      {iconsToShow.length === 0 ? (
+                        <text
+                          x={cardX + cardW / 2}
+                          y={cardTop + 40}
+                          textAnchor="middle"
+                          fill="#94a3b8"
+                          fontSize="5.2"
+                          fontWeight="500"
+                          className="select-none"
+                        >
+                          No wild Pokémon available
+                        </text>
+                      ) : (
+                        <g>
+                          {iconsToShow.map((poke, idx) => {
+                            const colWidth = (cardW - 14) / iconsToShow.length;
+                            const colCenter = cardX + 7 + (idx + 0.5) * colWidth;
+                            const displayName =
+                              poke.name.length > 7 ? poke.name.slice(0, 6) + "…" : poke.name;
+
+                            return (
+                              <g key={poke.pokemon_id}>
                                 <image
                                   href={
                                     showShinySprites
                                       ? poke.shiny_sprite_url
                                       : poke.sprite_url
                                   }
-                                  x={-10}
-                                  y={-10}
+                                  x={colCenter - 11}
+                                  y={cardTop + 20}
+                                  width={22}
+                                  height={22}
+                                  className="pixelated select-none"
+                                />
+
+                                <text
+                                  x={colCenter}
+                                  y={cardTop + 47.5}
+                                  textAnchor="middle"
+                                  fill="#e2e8f0"
+                                  fontSize="4.9"
+                                  fontWeight="700"
+                                  className="select-none"
+                                >
+                                  {displayName}
+                                </text>
+
+                                <rect
+                                  x={colCenter - 10}
+                                  y={cardTop + 50.5}
                                   width={20}
-                                  height={20}
-                                  className="pixelated"
+                                  height={7.2}
+                                  rx="3"
+                                  fill="rgba(99, 102, 241, 0.25)"
+                                  stroke="rgba(165, 180, 252, 0.3)"
+                                  strokeWidth="0.6"
                                 />
                                 <text
-                                  x="0"
-                                  y="11.5"
+                                  x={colCenter}
+                                  y={cardTop + 55.7}
                                   textAnchor="middle"
-                                  fill="#f8fafc"
-                                  fontSize="5.5"
+                                  fill="#a5b4fc"
+                                  fontSize="4.6"
                                   fontWeight="800"
-                                  style={{ textShadow: "0px 1px 2px #000" }}
+                                  className="select-none"
                                 >
                                   {poke.active_rate}%
                                 </text>
@@ -804,144 +1091,24 @@ export default function SinnohSvgMap({
                             );
                           })}
                         </g>
+                      )}
 
-                        {/* Shiny Odds & Species Count Footer */}
-                        <g transform={`translate(0, ${expandedH / 2 - 5})`}>
-                          <rect
-                            x={-expandedW / 2 + 4}
-                            y={-4}
-                            width={expandedW - 8}
-                            height={8}
-                            rx="4"
-                            fill="rgba(15, 23, 42, 0.92)"
-                          />
-                          <text
-                            x="0"
-                            y="1.6"
-                            textAnchor="middle"
-                            fill="#fde047"
-                            fontSize="5.2"
-                            fontWeight="700"
-                          >
-                            ✨ {shinyOddsShort} • {route.total_species} spp.
-                          </text>
-                        </g>
-                      </g>
-                    ) : (
-                      /* COLLAPSED DEFAULT: HIGH-PERFORMANCE PIN WITH HARDWARE-FRIENDLY VECTOR SHADOW */
-                      <g
-                        filter={
-                          isSearchMatch
-                            ? "url(#searchGlow)"
-                            : isSelected
-                            ? "url(#selectedGlow)"
-                            : undefined
-                        }
+                      {/* Bottom Hint (replaces redundant shiny stats) */}
+                      <text
+                        x={cardX + cardW / 2}
+                        y={cardTop + 63.8}
+                        textAnchor="middle"
+                        fill="#94a3b8"
+                        fontSize="4.2"
+                        fontWeight="600"
+                        className="select-none"
                       >
-                        {/* High-Performance Vector Shadow (Zero filter rasterization overhead!) */}
-                        <circle
-                          cx="0"
-                          cy="2"
-                          r={circleRadius}
-                          fill="rgba(15, 23, 42, 0.45)"
-                          className="pointer-events-none"
-                        />
-
-                        {/* Outer Circular Icon Node */}
-                        <circle
-                          cx="0"
-                          cy="0"
-                          r={circleRadius}
-                          fill={isSelected ? "#3730a3" : style.badgeBg}
-                          stroke={
-                            isSearchMatch
-                              ? "#facc15"
-                              : isSelected
-                              ? "#a5b4fc"
-                              : isHovered
-                              ? "#ffffff"
-                              : style.stroke
-                          }
-                          strokeWidth={isSearchMatch || isSelected || isHovered ? 2 : 1.3}
-                        />
-
-                        {/* Subtle Inner Ring */}
-                        <circle
-                          cx="0"
-                          cy="0"
-                          r={circleRadius - 2.2}
-                          fill="none"
-                          stroke="rgba(255, 255, 255, 0.2)"
-                          strokeWidth="0.6"
-                        />
-
-                        {isNumberedRoute ? (
-                          /* Numbered Route Name Inside the Round Icon (e.g. R201) */
-                          <text
-                            x="0"
-                            y="2.8"
-                            textAnchor="middle"
-                            fill="#ffffff"
-                            fontSize="8.2"
-                            fontWeight="800"
-                            letterSpacing="0.02em"
-                          >
-                            R{routeNum}
-                          </text>
-                        ) : (
-                          /* Landmark Badge Inside Circle + Clean Floating Label Without Bounding Box */
-                          <>
-                            <text
-                              x="0"
-                              y="2.4"
-                              textAnchor="middle"
-                              fill="#ffffff"
-                              fontSize={getLandmarkBadge(route.id, route.name).length > 4 ? "5.4" : "6.5"}
-                              fontWeight="800"
-                              letterSpacing="0.03em"
-                            >
-                              {getLandmarkBadge(route.id, route.name)}
-                            </text>
-                            {(() => {
-                              const isLabelOnTop =
-                                route.label_position === "top" ||
-                                route.id === "oreburgh-gate";
-                              return (
-                                <text
-                                  x="0"
-                                  y={isLabelOnTop ? -(circleRadius + 4.5) : circleRadius + 8.5}
-                                  textAnchor="middle"
-                                  fill="#f8fafc"
-                                  stroke="rgba(15, 23, 42, 0.95)"
-                                  strokeWidth="2.5"
-                                  strokeLinejoin="round"
-                                  paintOrder="stroke fill"
-                                  fontSize="6.6"
-                                  fontWeight="800"
-                                  letterSpacing="0.02em"
-                                  className="pointer-events-none"
-                                >
-                                  {shortName}
-                                </text>
-                              );
-                            })()}
-                          </>
-                        )}
-
-                        {/* Small Completion / Shiny Indicator Dot on Circle Rim */}
-                        {(allCaught || anyShinyCaught) && (
-                          <circle
-                            cx={circleRadius * 0.72}
-                            cy={-circleRadius * 0.72}
-                            r="3.2"
-                            fill={anyShinyCaught ? "#facc15" : "#22c55e"}
-                            stroke="#0f172a"
-                            strokeWidth="0.9"
-                          />
-                        )}
-                      </g>
-                    )}
-                  </g>
+                        {route.total_species > iconsToShow.length
+                          ? `+ ${route.total_species - iconsToShow.length} more in sidebar →`
+                          : route.subtitle}
+                      </text>
+                    </g>
+                  )}
                 </g>
               );
             })}
