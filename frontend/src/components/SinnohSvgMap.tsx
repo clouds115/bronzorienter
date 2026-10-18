@@ -416,10 +416,10 @@ export default function SinnohSvgMap({
   const shinyOddsShort =
     shinySummary?.four_patch_odds || shinySummary?.single_patch_odds || "1/4,096";
 
-  // Dynamic pin and city scale so routes, icons, and text remain legible without crowding nearby nodes
-  const pinScale = Math.max(0.72, Number((1.12 / Math.pow(zoom, 0.35)).toFixed(3)));
-  const expandedCardScale = Math.max(0.85, Number((1.2 / Math.pow(zoom, 0.35)).toFixed(3)));
-  const cityScale = Math.max(0.75, Number((1.05 / Math.pow(zoom, 0.3)).toFixed(3)));
+  // Dynamic pin and city scale so routes, icons, and text remain prominent and easily legible
+  const pinScale = Math.max(0.85, Number((1.38 / Math.pow(zoom, 0.4)).toFixed(3)));
+  const expandedCardScale = Math.max(0.9, Number((1.25 / Math.pow(zoom, 0.35)).toFixed(3)));
+  const cityScale = Math.max(0.85, Number((1.25 / Math.pow(zoom, 0.35)).toFixed(3)));
 
   // Sort routes so expanded, selected, and hovered routes render on top of everything else
   const sortedRoutes = [...routes].sort((a, b) => {
@@ -552,14 +552,14 @@ export default function SinnohSvgMap({
                       ? "#ffffff"
                       : "#f1f5f9"
                   }
-                  stroke="rgba(15, 23, 42, 0.94)"
-                  strokeWidth="2.4"
+                  stroke="rgba(15, 23, 42, 0.95)"
+                  strokeWidth="2.6"
                   strokeLinejoin="round"
                   paintOrder="stroke fill"
-                  fontSize="6.5"
+                  fontSize="7.6"
                   fontWeight="800"
-                  letterSpacing="0.12em"
-                  opacity="0.88"
+                  letterSpacing="0.1em"
+                  opacity="0.92"
                 >
                   {city.name.toUpperCase()}
                 </text>
@@ -609,7 +609,7 @@ export default function SinnohSvgMap({
               const iconsToShow = route.preview_pokemon.slice(0, 4);
               const expandedW = 90;
               const expandedH = 52;
-              const circleRadius = isHovered || isSearchMatch ? 12 : 10.5;
+              const circleRadius = isHovered || isSearchMatch ? 13.5 : 12;
 
               return (
                 <g
@@ -794,11 +794,12 @@ export default function SinnohSvgMap({
                           /* Numbered Route Name Inside the Round Icon (e.g. R201) */
                           <text
                             x="0"
-                            y="2.4"
+                            y="2.8"
                             textAnchor="middle"
                             fill="#ffffff"
-                            fontSize="6.8"
+                            fontSize="8.2"
                             fontWeight="800"
+                            letterSpacing="0.02em"
                           >
                             R{routeNum}
                           </text>
@@ -807,26 +808,26 @@ export default function SinnohSvgMap({
                           <>
                             <text
                               x="0"
-                              y="2.2"
+                              y="2.4"
                               textAnchor="middle"
                               fill="#ffffff"
-                              fontSize={getLandmarkBadge(route.id, route.name).length > 4 ? "4.6" : "5.5"}
+                              fontSize={getLandmarkBadge(route.id, route.name).length > 4 ? "5.4" : "6.5"}
                               fontWeight="800"
-                              letterSpacing="0.02em"
+                              letterSpacing="0.03em"
                             >
                               {getLandmarkBadge(route.id, route.name)}
                             </text>
                             <text
                               x="0"
-                              y={circleRadius + 7}
+                              y={circleRadius + 8.5}
                               textAnchor="middle"
                               fill="#f8fafc"
-                              stroke="rgba(15, 23, 42, 0.94)"
-                              strokeWidth="2.2"
+                              stroke="rgba(15, 23, 42, 0.95)"
+                              strokeWidth="2.5"
                               strokeLinejoin="round"
                               paintOrder="stroke fill"
-                              fontSize="5.2"
-                              fontWeight="700"
+                              fontSize="6.6"
+                              fontWeight="800"
                               letterSpacing="0.02em"
                               className="pointer-events-none"
                             >
