@@ -634,10 +634,10 @@ export default function SinnohSvgMap({
                   strokeWidth="2.6"
                   strokeLinejoin="round"
                   paintOrder="stroke fill"
-                  fontSize="7.6"
+                  fontSize="7.4"
                   fontWeight="800"
-                  letterSpacing="0.1em"
-                  opacity="0.92"
+                  letterSpacing="0.08em"
+                  opacity="0.82"
                 >
                   {city.name.toUpperCase()}
                 </text>
@@ -900,22 +900,29 @@ export default function SinnohSvgMap({
                             >
                               {getLandmarkBadge(route.id, route.name)}
                             </text>
-                            <text
-                              x="0"
-                              y={circleRadius + 8.5}
-                              textAnchor="middle"
-                              fill="#f8fafc"
-                              stroke="rgba(15, 23, 42, 0.95)"
-                              strokeWidth="2.5"
-                              strokeLinejoin="round"
-                              paintOrder="stroke fill"
-                              fontSize="6.6"
-                              fontWeight="800"
-                              letterSpacing="0.02em"
-                              className="pointer-events-none"
-                            >
-                              {shortName}
-                            </text>
+                            {(() => {
+                              const isLabelOnTop =
+                                route.label_position === "top" ||
+                                route.id === "oreburgh-gate";
+                              return (
+                                <text
+                                  x="0"
+                                  y={isLabelOnTop ? -(circleRadius + 4.5) : circleRadius + 8.5}
+                                  textAnchor="middle"
+                                  fill="#f8fafc"
+                                  stroke="rgba(15, 23, 42, 0.95)"
+                                  strokeWidth="2.5"
+                                  strokeLinejoin="round"
+                                  paintOrder="stroke fill"
+                                  fontSize="6.6"
+                                  fontWeight="800"
+                                  letterSpacing="0.02em"
+                                  className="pointer-events-none"
+                                >
+                                  {shortName}
+                                </text>
+                              );
+                            })()}
                           </>
                         )}
 

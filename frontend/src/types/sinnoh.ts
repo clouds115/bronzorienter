@@ -52,6 +52,7 @@ export interface SinnohRoute {
   encounters: PokemonEncounter[];
   preview_pokemon: PreviewPokemon[];
   total_species: number;
+  label_position?: "top" | "bottom";
 }
 
 export interface SinnohCity {
