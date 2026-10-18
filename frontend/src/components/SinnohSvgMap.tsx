@@ -150,7 +150,10 @@ export default function SinnohSvgMap({
     []
   );
 
-  // Keep refs to current zoom and pan so the native non-passive wheel listener can zoom toward the cursor
+  // Ref to distinguish taps from pans/drags on touch & mouse
+  const didDragRef = useRef<boolean>(false);
+
+  // Keep refs to current zoom and pan so the native non-passive wheel & touch listeners can zoom toward the cursor/pinch
   const zoomRef = useRef(zoom);
   const panRef = useRef(pan);
   useEffect(() => {
@@ -169,8 +172,8 @@ export default function SinnohSvgMap({
     return () => window.removeEventListener("resize", handleResize);
   }, [clampPan]);
 
-  // Native non-passive wheel & touchpad pinch-to-zoom listener
-  // Prevents browser page zoom when hovering over the map!
+  // Native non-passive wheel, trackpad pinch & mobile/tablet multi-touch listeners
+  // Prevents browser page zoom/scroll and enables smooth 1-finger pan and 2-finger pinch-to-zoom!
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -208,14 +211,105 @@ export default function SinnohSvgMap({
       e.preventDefault();
     };
 
+    // Mobile and tablet touch gesture state
+    const touchState = {
+      mode: null as "pan" | "pinch" | null,
+      startX: 0,
+      startY: 0,
+      panStartX: 0,
+      panStartY: 0,
+      initialPinchDist: 0,
+      initialZoom: 1,
+      pinchMidX: 0,
+      pinchMidY: 0,
+      initialPanX: 0,
+      initialPanY: 0,
+    };
+
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 1) {
+        touchState.mode = "pan";
+        touchState.startX = e.touches[0].clientX;
+        touchState.startY = e.touches[0].clientY;
+        touchState.panStartX = panRef.current.x;
+        touchState.panStartY = panRef.current.y;
+        didDragRef.current = false;
+        setIsDragging(true);
+      } else if (e.touches.length === 2) {
+        touchState.mode = "pinch";
+        const t1 = e.touches[0];
+        const t2 = e.touches[1];
+        touchState.initialPinchDist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+        touchState.initialZoom = zoomRef.current;
+        const rect = el.getBoundingClientRect();
+        touchState.pinchMidX = (t1.clientX + t2.clientX) / 2 - (rect.left + rect.width / 2);
+        touchState.pinchMidY = (t1.clientY + t2.clientY) / 2 - (rect.top + rect.height / 2);
+        touchState.initialPanX = panRef.current.x;
+        touchState.initialPanY = panRef.current.y;
+        didDragRef.current = true;
+        setIsDragging(true);
+      }
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (!touchState.mode) return;
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (touchState.mode === "pan" && e.touches.length === 1) {
+        const dx = e.touches[0].clientX - touchState.startX;
+        const dy = e.touches[0].clientY - touchState.startY;
+        if (Math.hypot(dx, dy) > 6) {
+          didDragRef.current = true;
+        }
+        setPan(clampPan(touchState.panStartX + dx, touchState.panStartY + dy, zoomRef.current));
+      } else if (touchState.mode === "pinch" && e.touches.length === 2 && touchState.initialPinchDist > 0) {
+        didDragRef.current = true;
+        const t1 = e.touches[0];
+        const t2 = e.touches[1];
+        const currentDist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+        const pinchRatio = currentDist / touchState.initialPinchDist;
+        const newZoom = Math.min(
+          MAX_ZOOM,
+          Math.max(MIN_ZOOM, Number((touchState.initialZoom * pinchRatio).toFixed(3)))
+        );
+        const scaleRatio = newZoom / touchState.initialZoom;
+        const newPanX = touchState.pinchMidX - (touchState.pinchMidX - touchState.initialPanX) * scaleRatio;
+        const newPanY = touchState.pinchMidY - (touchState.pinchMidY - touchState.initialPanY) * scaleRatio;
+        setZoom(newZoom);
+        setPan(clampPan(newPanX, newPanY, newZoom));
+      }
+    };
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      if (e.touches.length === 0) {
+        touchState.mode = null;
+        setIsDragging(false);
+      } else if (e.touches.length === 1) {
+        touchState.mode = "pan";
+        touchState.startX = e.touches[0].clientX;
+        touchState.startY = e.touches[0].clientY;
+        touchState.panStartX = panRef.current.x;
+        touchState.panStartY = panRef.current.y;
+      }
+    };
+
     el.addEventListener("wheel", handleNativeWheel, { passive: false });
     el.addEventListener("gesturestart", preventGesture, { passive: false });
     el.addEventListener("gesturechange", preventGesture, { passive: false });
+    el.addEventListener("touchstart", handleTouchStart, { passive: false });
+    el.addEventListener("touchmove", handleTouchMove, { passive: false });
+    el.addEventListener("touchend", handleTouchEnd, { passive: false });
+    el.addEventListener("touchcancel", handleTouchEnd, { passive: false });
 
     return () => {
       el.removeEventListener("wheel", handleNativeWheel);
       el.removeEventListener("gesturestart", preventGesture);
       el.removeEventListener("gesturechange", preventGesture);
+      el.removeEventListener("touchstart", handleTouchStart);
+      el.removeEventListener("touchmove", handleTouchMove);
+      el.removeEventListener("touchend", handleTouchEnd);
+      el.removeEventListener("touchcancel", handleTouchEnd);
     };
   }, [clampPan]);
 
@@ -251,6 +345,7 @@ export default function SinnohSvgMap({
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if (e.button !== 0) return;
+    didDragRef.current = false;
     setIsDragging(true);
     setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
   };
@@ -259,6 +354,9 @@ export default function SinnohSvgMap({
     if (!isDragging) return;
     const rawX = e.clientX - dragStart.x;
     const rawY = e.clientY - dragStart.y;
+    if (Math.hypot(rawX - pan.x, rawY - pan.y) > 6) {
+      didDragRef.current = true;
+    }
     setPan(clampPan(rawX, rawY, zoom));
   };
 
@@ -502,6 +600,7 @@ export default function SinnohSvgMap({
                   transform={`translate(${route.x}, ${route.y})`}
                   onClick={(e) => {
                     e.stopPropagation();
+                    if (didDragRef.current) return;
                     if (isSelected) {
                       // Toggle the on-map expanded card if clicking the already selected route
                       setExpandedRouteId((prev) => (prev === route.id ? null : route.id));
