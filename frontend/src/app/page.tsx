@@ -489,7 +489,7 @@ export default function SinnohMapPage() {
                     />
                   ))}
                   <span className="text-[10px] text-slate-400 font-medium ml-1">
-                    {selectedRoute.total_species} spp.
+                    {selectedRoute.total_species} Pokémon
                   </span>
                 </div>
               </div>

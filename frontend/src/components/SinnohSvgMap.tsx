@@ -954,73 +954,63 @@ export default function SinnohSvgMap({
                         {/* Route Title */}
                         <text
                           x={cardX + 8}
-                          y={cardTop + 12}
+                          y={cardTop + 9.8}
+                          dominantBaseline="central"
                           fill="#ffffff"
-                          fontSize="7"
+                          fontSize={route.name.length > 13 ? "6.2" : "7"}
                           fontWeight="800"
                           letterSpacing="-0.01em"
                           className="select-none"
                         >
-                        {route.name}
-                        {allCaught ? " ✓" : ""}
-                        {anyShinyCaught ? " ✨" : ""}
-                      </text>
+                          {route.name}
+                          {allCaught ? " ✓" : ""}
+                          {anyShinyCaught ? " ✨" : ""}
+                        </text>
 
-                      {/* Species Count Badge */}
-                      <g transform={`translate(${cardX + cardW - 46}, ${cardTop + 4})`}>
-                        <rect
-                          x="0"
-                          y="0"
-                          width="23"
-                          height="9.5"
-                          rx="4.75"
-                          fill="rgba(15, 23, 42, 0.75)"
-                          stroke={style.stroke}
-                          strokeOpacity="0.5"
-                          strokeWidth="0.8"
-                        />
+                        {/* Species Count Label (Uppercase, centered, muted gray, no circle) */}
                         <text
-                          x="11.5"
-                          y="6.8"
+                          x={cardX + cardW / 2}
+                          y={cardTop + 9.8}
                           textAnchor="middle"
-                          fill={style.text || "#ffffff"}
+                          dominantBaseline="central"
+                          fill="#94a3b8"
                           fontSize="4.8"
                           fontWeight="700"
-                          className="select-none"
+                          letterSpacing="0.06em"
+                          className="select-none uppercase"
                         >
-                          {route.total_species} spp.
+                          {route.total_species} POKÉMON
                         </text>
-                      </g>
 
-                      {/* Close Dismiss Button "✕" */}
-                      <g
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onSelectRoute(null);
-                          setExpandedRouteId(null);
-                        }}
-                        className="cursor-pointer"
-                      >
-                        <circle
-                          cx={cardX + cardW - 10}
-                          cy={cardTop + 8.75}
-                          r="5.2"
-                          fill="rgba(255, 255, 255, 0.15)"
-                          stroke="rgba(255, 255, 255, 0.3)"
-                          strokeWidth="0.8"
-                        />
-                        <text
-                          x={cardX + cardW - 10}
-                          y={cardTop + 11}
-                          textAnchor="middle"
-                          fill="#f1f5f9"
-                          fontSize="6.2"
-                          fontWeight="800"
-                          className="select-none"
+                        {/* Close Dismiss Button "✕" (clean, no circle) */}
+                        <g
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onSelectRoute(null);
+                            setExpandedRouteId(null);
+                          }}
+                          className="cursor-pointer group"
                         >
-                          ✕
-                        </text>
-                      </g>
+                          <rect
+                            x={cardX + cardW - 20}
+                            y={cardTop}
+                            width="20"
+                            height="18"
+                            fill="transparent"
+                          />
+                          <text
+                            x={cardX + cardW - 10}
+                            y={cardTop + 9.8}
+                            textAnchor="middle"
+                            dominantBaseline="central"
+                            fill="#94a3b8"
+                            fontSize="7"
+                            fontWeight="700"
+                            className="select-none hover:fill-white transition-colors"
+                          >
+                            ✕
+                          </text>
+                        </g>
 
                       {/* Header Divider Line */}
                       <line
@@ -1121,7 +1111,7 @@ export default function SinnohSvgMap({
                         className="select-none"
                       >
                         {route.total_species > iconsToShow.length
-                          ? `+ ${route.total_species - iconsToShow.length} more in sidebar →`
+                          ? `+ ${route.total_species - iconsToShow.length} more Pokémon`
                           : route.subtitle}
                       </text>
                       </g>
