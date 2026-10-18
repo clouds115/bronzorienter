@@ -11,7 +11,7 @@ import {
   EyeOff,
   Building2,
 } from "lucide-react";
-import { SinnohRoute, SinnohCity, ShinySummary } from "@/types/sinnoh";
+import { SinnohRoute, SinnohCity, ShinySummary, TimeOfDay } from "@/types/sinnoh";
 
 interface SinnohSvgMapProps {
   routes: SinnohRoute[];
@@ -24,6 +24,7 @@ interface SinnohSvgMapProps {
   caughtPokemonIds: number[];
   shinyCaughtIds: number[];
   zoomToRouteTrigger: number;
+  timeOfDay?: TimeOfDay;
 }
 
 const TERRAIN_STYLES: Record<
@@ -129,7 +130,11 @@ export default function SinnohSvgMap({
   caughtPokemonIds,
   shinyCaughtIds,
   zoomToRouteTrigger,
+  timeOfDay = "day",
 }: SinnohSvgMapProps) {
+  const isNight = timeOfDay === "night";
+  const isMorning = timeOfDay === "morning";
+
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [zoom, setZoom] = useState<number>(1.0);
   const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -534,7 +539,9 @@ export default function SinnohSvgMap({
         setExpandedRouteId(null);
       }}
       style={{ touchAction: "none", overscrollBehavior: "none" }}
-      className={`relative w-full h-full overflow-hidden select-none bg-[#176f91] ${
+      className={`relative w-full h-full overflow-hidden select-none transition-colors duration-700 ${
+        isNight ? "bg-[#08131f]" : isMorning ? "bg-[#1b5f7e]" : "bg-[#176f91]"
+      } ${
         isDragging ? "cursor-grabbing" : "cursor-grab"
       }`}
     >
@@ -546,9 +553,19 @@ export default function SinnohSvgMap({
         <img
           src="/bdsp-town-map.png"
           alt=""
-          className="w-full h-full object-cover scale-125 blur-2xl opacity-75 saturate-110"
+          className={`w-full h-full object-cover scale-125 blur-2xl transition-all duration-700 ${
+            isNight
+              ? "opacity-35 brightness-[0.45] saturate-[0.7]"
+              : isMorning
+              ? "opacity-80 brightness-[1.05] saturate-[1.1]"
+              : "opacity-75 saturate-110"
+          }`}
         />
-        <div className="absolute inset-0 bg-slate-950/20" />
+        <div
+          className={`absolute inset-0 transition-colors duration-700 ${
+            isNight ? "bg-slate-950/60" : "bg-slate-950/20"
+          }`}
+        />
       </div>
 
       {/* Interactive Pan/Zoom SVG Canvas (Hardware Accelerated) */}
@@ -578,6 +595,9 @@ export default function SinnohSvgMap({
                 </filter>
                 <filter id="searchGlow" x="-35%" y="-35%" width="170%" height="170%">
                   <feDropShadow dx="0" dy="0" stdDeviation="5" floodColor="#facc15" floodOpacity="0.9" />
+                </filter>
+                <filter id="cityGlow" x="-50%" y="-50%" width="200%" height="200%">
+                  <feGaussianBlur stdDeviation="3.5" />
                 </filter>
 
                 {/* Feathered edge mask so the map image fades softly with rounded corners into the ocean backdrop */}
@@ -620,6 +640,33 @@ export default function SinnohSvgMap({
                 height={MAP_HEIGHT}
                 preserveAspectRatio="none"
                 mask="url(#mapEdgeFadeMask)"
+                className={`transition-all duration-700 ${
+                  isNight
+                    ? "brightness-[0.66] contrast-[1.12] hue-rotate-[-10deg] saturate-[0.82]"
+                    : isMorning
+                    ? "brightness-[1.03] saturate-[1.08] sepia-[0.06]"
+                    : ""
+                }`}
+              />
+
+              {/* Nighttime ambient moonlight wash */}
+              <rect
+                width={MAP_WIDTH}
+                height={MAP_HEIGHT}
+                mask="url(#mapEdgeFadeMask)"
+                fill="#0f172a"
+                opacity={isNight ? 0.32 : 0}
+                className="pointer-events-none mix-blend-multiply transition-opacity duration-700"
+              />
+
+              {/* Subtle cool blue moonlight sheen */}
+              <rect
+                width={MAP_WIDTH}
+                height={MAP_HEIGHT}
+                mask="url(#mapEdgeFadeMask)"
+                fill="#38bdf8"
+                opacity={isNight ? 0.08 : 0}
+                className="pointer-events-none mix-blend-color-dodge transition-opacity duration-700"
               />
 
           {/* IN-GAME CITY & TOWN LABELS: FLOATING ALL CAPS CARTOGRAPHIC TYPOGRAPHY WITH DARK SHADING */}
@@ -630,6 +677,15 @@ export default function SinnohSvgMap({
                 transform={`translate(${city.x}, ${city.y}) scale(${cityScale})`}
                 className="pointer-events-none select-none"
               >
+                {/* Nighttime warm amber city glow */}
+                {isNight && (
+                  <circle
+                    r={city.size === "league" ? 14 : 9}
+                    fill="#fef08a"
+                    opacity={city.size === "league" ? 0.38 : 0.24}
+                    filter="url(#cityGlow)"
+                  />
+                )}
                 <text
                   x="0"
                   y="0"
@@ -649,7 +705,7 @@ export default function SinnohSvgMap({
                   fontSize="7.4"
                   fontWeight="800"
                   letterSpacing="0.08em"
-                  opacity="0.82"
+                  opacity={isNight ? "0.95" : "0.82"}
                 >
                   {city.name.toUpperCase()}
                 </text>

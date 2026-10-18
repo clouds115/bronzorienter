@@ -420,6 +420,7 @@ export default function SinnohMapPage() {
               caughtPokemonIds={caughtIds}
               shinyCaughtIds={shinyCaughtIds}
               zoomToRouteTrigger={zoomToRouteTrigger}
+              timeOfDay={timeOfDay}
             />
           )}
 
