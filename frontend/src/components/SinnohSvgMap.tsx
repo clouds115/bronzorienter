@@ -889,67 +889,78 @@ export default function SinnohSvgMap({
                   </g>
 
                   {/* EXPANDED ROUTE INFO CARD: ANCHORED ABOVE/BELOW PIN (NEVER OBSCURING MAP OR ROUTE) */}
-                  {isExpanded && (
-                    <g
-                      transform={`scale(${expandedCardScale})`}
-                      filter="url(#selectedGlow)"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {/* Pointer Arrow Polygon */}
-                      <polygon
-                        points={
-                          isPlacedBelow
-                            ? `-6,24 0,${pointerTipY} 6,24`
-                            : `-6,-24 0,${pointerTipY} 6,-24`
-                        }
-                        fill="rgba(15, 23, 42, 0.96)"
-                        stroke={isSearchMatch ? "#facc15" : style.stroke}
-                        strokeWidth="1.6"
-                      />
+                  {isExpanded && (() => {
+                    const headerH = 18;
+                    const cardRadius = 9;
+                    const headerPath = `M ${cardX} ${cardTop + headerH} L ${cardX} ${cardTop + cardRadius} A ${cardRadius} ${cardRadius} 0 0 1 ${cardX + cardRadius} ${cardTop} L ${cardX + cardW - cardRadius} ${cardTop} A ${cardRadius} ${cardRadius} 0 0 1 ${cardX + cardW} ${cardTop + cardRadius} L ${cardX + cardW} ${cardTop + headerH} Z`;
 
-                      {/* Main Card Container */}
-                      <rect
-                        x={cardX}
-                        y={cardTop}
-                        width={cardW}
-                        height={cardH}
-                        rx="9"
-                        fill="rgba(15, 23, 42, 0.96)"
-                        stroke={isSearchMatch ? "#facc15" : style.stroke}
-                        strokeWidth="1.6"
-                      />
-
-                      {/* Seam Cover (masks stroke between arrow base and card edge) */}
-                      <rect
-                        x="-5.5"
-                        y={isPlacedBelow ? 23.2 : -24.8}
-                        width="11"
-                        height="2.5"
-                        fill="rgba(15, 23, 42, 0.96)"
-                        stroke="none"
-                      />
-
-                      {/* Card Header Background with route terrain color */}
-                      <rect
-                        x={cardX + 1}
-                        y={cardTop + 1}
-                        width={cardW - 2}
-                        height={17}
-                        rx="8"
-                        fill={style.badgeBg}
-                        fillOpacity="0.88"
-                      />
-
-                      {/* Route Title */}
-                      <text
-                        x={cardX + 8}
-                        y={cardTop + 12}
-                        fill="#ffffff"
-                        fontSize="7"
-                        fontWeight="800"
-                        letterSpacing="-0.01em"
-                        className="select-none"
+                    return (
+                      <g
+                        transform={`scale(${expandedCardScale})`}
+                        filter="url(#selectedGlow)"
+                        onClick={(e) => e.stopPropagation()}
                       >
+                        {/* Main Card Container Background */}
+                        <rect
+                          x={cardX}
+                          y={cardTop}
+                          width={cardW}
+                          height={cardH}
+                          rx={cardRadius}
+                          fill="rgba(15, 23, 42, 0.96)"
+                        />
+
+                        {/* Top Header Bar (Properly filled across top with matching corner curves) */}
+                        <path
+                          d={headerPath}
+                          fill={style.badgeBg}
+                          fillOpacity="0.94"
+                        />
+
+                        {/* Pointer Arrow Polygon */}
+                        <polygon
+                          points={
+                            isPlacedBelow
+                              ? `-6,24 0,${pointerTipY} 6,24`
+                              : `-6,-24 0,${pointerTipY} 6,-24`
+                          }
+                          fill="rgba(15, 23, 42, 0.96)"
+                          stroke={isSearchMatch ? "#facc15" : style.stroke}
+                          strokeWidth="1.6"
+                        />
+
+                        {/* Outer Card Stroke Border */}
+                        <rect
+                          x={cardX}
+                          y={cardTop}
+                          width={cardW}
+                          height={cardH}
+                          rx={cardRadius}
+                          fill="none"
+                          stroke={isSearchMatch ? "#facc15" : style.stroke}
+                          strokeWidth="1.6"
+                        />
+
+                        {/* Seam Cover (masks stroke between arrow base and card edge) */}
+                        <rect
+                          x="-5.5"
+                          y={isPlacedBelow ? 23.2 : -24.8}
+                          width="11"
+                          height="2.5"
+                          fill="rgba(15, 23, 42, 0.96)"
+                          stroke="none"
+                        />
+
+                        {/* Route Title */}
+                        <text
+                          x={cardX + 8}
+                          y={cardTop + 12}
+                          fill="#ffffff"
+                          fontSize="7"
+                          fontWeight="800"
+                          letterSpacing="-0.01em"
+                          className="select-none"
+                        >
                         {route.name}
                         {allCaught ? " ✓" : ""}
                         {anyShinyCaught ? " ✨" : ""}
@@ -1113,8 +1124,9 @@ export default function SinnohSvgMap({
                           ? `+ ${route.total_species - iconsToShow.length} more in sidebar →`
                           : route.subtitle}
                       </text>
-                    </g>
-                  )}
+                      </g>
+                    );
+                  })()}
                 </g>
               );
             })}
