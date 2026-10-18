@@ -849,7 +849,7 @@ export default function SinnohMapPage() {
                     <div className="mt-2.5 pt-2 border-t border-slate-800/80 grid grid-cols-3 gap-2 text-center">
                       <div className="bg-slate-900/90 rounded-lg py-1 px-2 border border-slate-800/80">
                         <div className="text-[10px] text-slate-400">
-                          Normal Odds ({timeOfDay})
+                           Normal Odds 
                         </div>
                         <div className="text-xs font-extrabold text-emerald-400 font-mono">
                           {enc.active_rate}%{" "}
