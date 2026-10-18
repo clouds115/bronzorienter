@@ -134,11 +134,20 @@ export default function SinnohSvgMap({
   const [zoom, setZoom] = useState<number>(1.0);
   const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState<boolean>(false);
+  const [isWheelZooming, setIsWheelZooming] = useState<boolean>(false);
+  const wheelTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [dragStart, setDragStart] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [hoveredRouteId, setHoveredRouteId] = useState<string | null>(null);
   const [expandedRouteId, setExpandedRouteId] = useState<string | null>(selectedRouteId);
   const [showRoutePins, setShowRoutePins] = useState<boolean>(true);
   const [showCityLabels, setShowCityLabels] = useState<boolean>(true);
+
+  // Clear interaction timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (wheelTimeoutRef.current) clearTimeout(wheelTimeoutRef.current);
+    };
+  }, []);
 
   // Sync expanded card when selectedRouteId changes externally (e.g. from search or Jump To dropdown)
   useEffect(() => {
@@ -260,8 +269,14 @@ export default function SinnohSvgMap({
       const newPanX = cursorX - (cursorX - oldPan.x) * scaleRatio;
       const newPanY = cursorY - (cursorY - oldPan.y) * scaleRatio;
 
+      setIsWheelZooming(true);
+      if (wheelTimeoutRef.current) clearTimeout(wheelTimeoutRef.current);
+      wheelTimeoutRef.current = setTimeout(() => {
+        setIsWheelZooming(false);
+      }, 140);
+
       setZoom(newZoom);
-      setPan(clampPan(newPanX, newPanY, newZoom));
+      schedulePan(clampPan(newPanX, newPanY, newZoom));
     };
 
     const preventGesture = (e: Event) => {
@@ -488,6 +503,8 @@ export default function SinnohSvgMap({
     });
   }, [routes, expandedRouteId, selectedRouteId, hoveredRouteId, searchMatchedIds]);
 
+  const isInteractingActive = isDragging || isWheelZooming;
+
   return (
     <div
       ref={containerRef}
@@ -516,55 +533,41 @@ export default function SinnohSvgMap({
       {/* Interactive Pan/Zoom SVG Canvas (Hardware Accelerated) */}
       <div
         className={`relative w-full h-full flex items-center justify-center ${
-          isDragging ? "" : "transition-transform duration-150 ease-out"
+          isInteractingActive ? "" : "transition-transform duration-150 ease-out"
         }`}
         style={{
           transform: `translate3d(${pan.x}px, ${pan.y}px, 0px) scale(${zoom})`,
           transformOrigin: "center center",
-          willChange: isDragging ? "transform" : "auto",
+          willChange: isInteractingActive ? "transform" : "auto",
           backfaceVisibility: "hidden",
         }}
       >
-        <svg
-          viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`}
-          className="w-full h-full overflow-visible"
-        >
-          <defs>
-            <filter id="selectedGlow" x="-35%" y="-35%" width="170%" height="170%">
-              <feDropShadow dx="0" dy="0" stdDeviation="5" floodColor="#6366f1" floodOpacity="0.95" />
-            </filter>
-            <filter id="searchGlow" x="-35%" y="-35%" width="170%" height="170%">
-              <feDropShadow dx="0" dy="0" stdDeviation="6" floodColor="#facc15" floodOpacity="0.95" />
-            </filter>
+            <svg
+              viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`}
+              className="w-full h-full overflow-visible"
+            >
+              <defs>
+                <filter id="selectedGlow" x="-35%" y="-35%" width="170%" height="170%">
+                  <feDropShadow dx="0" dy="0" stdDeviation="5" floodColor="#6366f1" floodOpacity="0.95" />
+                </filter>
+                <filter id="searchGlow" x="-35%" y="-35%" width="170%" height="170%">
+                  <feDropShadow dx="0" dy="0" stdDeviation="6" floodColor="#facc15" floodOpacity="0.95" />
+                </filter>
+              </defs>
 
-            {/* Feathered edge mask so the map image fades smoothly without expensive heavy blur passes */}
-            <filter id="edgeFeatherFilter" x="-5%" y="-5%" width="110%" height="110%">
-              <feGaussianBlur stdDeviation="8" />
-            </filter>
-            <mask id="mapEdgeFadeMask">
-              <rect x="-100" y="-100" width={MAP_WIDTH + 200} height={MAP_HEIGHT + 200} fill="black" />
-              <rect
-                x="14"
-                y="14"
-                width={MAP_WIDTH - 28}
-                height={MAP_HEIGHT - 28}
-                rx="24"
-                fill="white"
-                filter="url(#edgeFeatherFilter)"
+              {/* ACTUAL IN-GAME POKÉMON BRILLIANT DIAMOND / SHINING PEARL SINNOH TOWN MAP (GPU Hardware Mask) */}
+              <image
+                href="/bdsp-town-map.png"
+                x="0"
+                y="0"
+                width={MAP_WIDTH}
+                height={MAP_HEIGHT}
+                preserveAspectRatio="none"
+                style={{
+                  maskImage: "radial-gradient(ellipse 96% 94% at 50% 50%, black 86%, transparent 100%)",
+                  WebkitMaskImage: "radial-gradient(ellipse 96% 94% at 50% 50%, black 86%, transparent 100%)",
+                }}
               />
-            </mask>
-          </defs>
-
-          {/* ACTUAL IN-GAME POKÉMON BRILLIANT DIAMOND / SHINING PEARL SINNOH TOWN MAP (Feathered Edges) */}
-          <image
-            href="/bdsp-town-map.png"
-            x="0"
-            y="0"
-            width={MAP_WIDTH}
-            height={MAP_HEIGHT}
-            preserveAspectRatio="none"
-            mask="url(#mapEdgeFadeMask)"
-          />
 
           {/* IN-GAME CITY & TOWN LABELS: FLOATING ALL CAPS CARTOGRAPHIC TYPOGRAPHY WITH DARK SHADING */}
           {showCityLabels &&
@@ -601,8 +604,9 @@ export default function SinnohSvgMap({
             ))}
 
           {/* INTERACTIVE ROUTES & LANDMARKS: DYNAMICALLY SCALED ON ZOOM OUT FOR EFFORTLESS READING */}
-          {showRoutePins &&
-            sortedRoutes.map((route) => {
+          {showRoutePins && (
+            <g className={isInteractingActive ? "pointer-events-none" : ""}>
+              {sortedRoutes.map((route) => {
               const isSelected = route.id === selectedRouteId;
               const isExpanded = isSelected && expandedRouteId === route.id;
               const isHovered = route.id === hoveredRouteId;
@@ -896,6 +900,8 @@ export default function SinnohSvgMap({
                 </g>
               );
             })}
+            </g>
+          )}
         </svg>
       </div>
 
