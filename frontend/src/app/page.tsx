@@ -535,8 +535,7 @@ export default function SinnohMapPage() {
                   onClick={() => setZoomToRouteTrigger((c) => c + 1)}
                   className="shrink-0 px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center gap-1 shadow transition"
                 >
-                  <MapPin className="w-3.5 h-3.5" />
-                  Focus Map
+                  <MapPin className="w-3.5 h-3.5" />                  
                 </button>
               </div>
               <p className="text-xs text-slate-300 mt-2 leading-relaxed">
@@ -553,7 +552,7 @@ export default function SinnohMapPage() {
             >
               <span className="flex items-center gap-2">
                 <SlidersHorizontal className="w-3.5 h-3.5 text-amber-400" />
-                <span>BDSP Shiny Odds Calculator</span>
+                <span>Shiny Odds</span>
                 {mapData?.shiny_summary && (
                   <span className="px-2 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-200 font-mono text-[11px]">
                     ✨ {mapData.shiny_summary.active_odds_label}
@@ -792,7 +791,7 @@ export default function SinnohMapPage() {
                                 : "text-slate-500"
                             }
                           >
-                            🌅 M: {enc.rates.morning}%
+                            🌅{enc.rates.morning}%
                           </span>
                           <span className="text-slate-700">•</span>
                           <span
@@ -802,7 +801,7 @@ export default function SinnohMapPage() {
                                 : "text-slate-500"
                             }
                           >
-                            ☀️ D: {enc.rates.day}%
+                            ☀️{enc.rates.day}%
                           </span>
                           <span className="text-slate-700">•</span>
                           <span
@@ -812,7 +811,7 @@ export default function SinnohMapPage() {
                                 : "text-slate-500"
                             }
                           >
-                            🌙 N: {enc.rates.night}%
+                            🌙{enc.rates.night}%
                           </span>
                         </div>
                       </div>
@@ -850,7 +849,7 @@ export default function SinnohMapPage() {
                     <div className="mt-2.5 pt-2 border-t border-slate-800/80 grid grid-cols-3 gap-2 text-center">
                       <div className="bg-slate-900/90 rounded-lg py-1 px-2 border border-slate-800/80">
                         <div className="text-[10px] text-slate-400">
-                          Normal Odds ({timeOfDay})
+                           Normal Odds 
                         </div>
                         <div className="text-xs font-extrabold text-emerald-400 font-mono">
                           {enc.active_rate}%{" "}
