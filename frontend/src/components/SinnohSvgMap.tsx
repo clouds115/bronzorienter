@@ -747,8 +747,9 @@ export default function SinnohSvgMap({
                       width={route.width}
                       height={route.height}
                       rx="8"
-                      fill="rgba(99, 102, 241, 0.22)"
-                      stroke="#818cf8"
+                      fill={style.fill}
+                      fillOpacity="0.22"
+                      stroke={style.stroke}
                       strokeWidth="1.6"
                       strokeDasharray="3 2"
                       className="pointer-events-none"
@@ -782,7 +783,7 @@ export default function SinnohSvgMap({
                           cy="0"
                           r={circleRadius + 4}
                           fill="none"
-                          stroke="#818cf8"
+                          stroke={style.stroke}
                           strokeWidth="1.8"
                           strokeDasharray="3 2"
                           opacity="0.9"
@@ -795,17 +796,17 @@ export default function SinnohSvgMap({
                         cx="0"
                         cy="0"
                         r={circleRadius}
-                        fill={isSelected ? "#3730a3" : style.badgeBg}
+                        fill={style.badgeBg}
                         stroke={
                           isSearchMatch
                             ? "#facc15"
                             : isSelected
-                            ? "#a5b4fc"
+                            ? "#ffffff"
                             : isHovered
                             ? "#ffffff"
                             : style.stroke
                         }
-                        strokeWidth={isSearchMatch || isSelected || isHovered ? 2 : 1.3}
+                        strokeWidth={isSearchMatch || isSelected || isHovered ? 2.2 : 1.3}
                       />
 
                       {/* Subtle Inner Ring */}
@@ -902,7 +903,7 @@ export default function SinnohSvgMap({
                             : `-6,-24 0,${pointerTipY} 6,-24`
                         }
                         fill="rgba(15, 23, 42, 0.96)"
-                        stroke={isSearchMatch ? "#facc15" : "#818cf8"}
+                        stroke={isSearchMatch ? "#facc15" : style.stroke}
                         strokeWidth="1.6"
                       />
 
@@ -914,7 +915,7 @@ export default function SinnohSvgMap({
                         height={cardH}
                         rx="9"
                         fill="rgba(15, 23, 42, 0.96)"
-                        stroke={isSearchMatch ? "#facc15" : "#818cf8"}
+                        stroke={isSearchMatch ? "#facc15" : style.stroke}
                         strokeWidth="1.6"
                       />
 
@@ -928,14 +929,15 @@ export default function SinnohSvgMap({
                         stroke="none"
                       />
 
-                      {/* Card Header Background */}
+                      {/* Card Header Background with route terrain color */}
                       <rect
                         x={cardX + 1}
                         y={cardTop + 1}
                         width={cardW - 2}
                         height={17}
                         rx="8"
-                        fill="rgba(49, 46, 129, 0.5)"
+                        fill={style.badgeBg}
+                        fillOpacity="0.88"
                       />
 
                       {/* Route Title */}
@@ -961,15 +963,16 @@ export default function SinnohSvgMap({
                           width="23"
                           height="9.5"
                           rx="4.75"
-                          fill="rgba(30, 27, 75, 0.85)"
-                          stroke="rgba(165, 180, 252, 0.4)"
+                          fill="rgba(15, 23, 42, 0.75)"
+                          stroke={style.stroke}
+                          strokeOpacity="0.5"
                           strokeWidth="0.8"
                         />
                         <text
                           x="11.5"
                           y="6.8"
                           textAnchor="middle"
-                          fill="#c7d2fe"
+                          fill={style.text || "#ffffff"}
                           fontSize="4.8"
                           fontWeight="700"
                           className="select-none"
@@ -991,8 +994,8 @@ export default function SinnohSvgMap({
                           cx={cardX + cardW - 10}
                           cy={cardTop + 8.75}
                           r="5.2"
-                          fill="rgba(255, 255, 255, 0.12)"
-                          stroke="rgba(255, 255, 255, 0.25)"
+                          fill="rgba(255, 255, 255, 0.15)"
+                          stroke="rgba(255, 255, 255, 0.3)"
                           strokeWidth="0.8"
                         />
                         <text
@@ -1014,7 +1017,8 @@ export default function SinnohSvgMap({
                         y1={cardTop + 18}
                         x2={cardX + cardW}
                         y2={cardTop + 18}
-                        stroke="rgba(129, 140, 248, 0.25)"
+                        stroke={style.stroke}
+                        strokeOpacity="0.35"
                         strokeWidth="0.8"
                       />
 
@@ -1072,15 +1076,17 @@ export default function SinnohSvgMap({
                                   width={20}
                                   height={7.2}
                                   rx="3"
-                                  fill="rgba(99, 102, 241, 0.25)"
-                                  stroke="rgba(165, 180, 252, 0.3)"
+                                  fill={style.badgeBg}
+                                  fillOpacity="0.65"
+                                  stroke={style.stroke}
+                                  strokeOpacity="0.45"
                                   strokeWidth="0.6"
                                 />
                                 <text
                                   x={colCenter}
                                   y={cardTop + 55.7}
                                   textAnchor="middle"
-                                  fill="#a5b4fc"
+                                  fill={style.text || "#a5b4fc"}
                                   fontSize="4.6"
                                   fontWeight="800"
                                   className="select-none"

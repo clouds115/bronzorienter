@@ -714,11 +714,11 @@ export default function SinnohMapPage() {
           {/* Encounter Method Filter Tabs */}
           <div className="px-4 py-2 bg-slate-900 border-b border-slate-800 flex items-center gap-1.5 overflow-x-auto shrink-0">
             {[
-              { id: "all", label: "All Methods" },
+              { id: "all", label: "All" },
               { id: "grass", label: "Grass" },
               { id: "poke_radar", label: "Poké Radar" },
               { id: "surf", label: "Surf" },
-              { id: "fishing", label: "Fishing" },
+              { id: "fishing", label: "Fishing Rod" },
               { id: "cave", label: "Cave" },
               { id: "special", label: "Special / Tree" },
             ].map((tab) => (
