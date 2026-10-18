@@ -533,11 +533,18 @@ export default function SinnohSvgMap({
         isDragging ? "cursor-grabbing" : "cursor-grab"
       }`}
     >
-      {/* Ambient Sinnoh Ocean Backdrop */}
+      {/* Ambient Blurred Map Backdrop so any surrounding aspect-ratio margin blends seamlessly */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 bg-gradient-to-br from-[#1b7699] via-[#145d7a] to-[#0c394c]"
-      />
+        className="pointer-events-none absolute inset-0 overflow-hidden"
+      >
+        <img
+          src="/bdsp-town-map.png"
+          alt=""
+          className="w-full h-full object-cover scale-125 blur-2xl opacity-75 saturate-110"
+        />
+        <div className="absolute inset-0 bg-slate-950/20" />
+      </div>
 
       {/* Interactive Pan/Zoom SVG Canvas (Hardware Accelerated) */}
       <div
@@ -563,33 +570,46 @@ export default function SinnohSvgMap({
                   <feDropShadow dx="0" dy="0" stdDeviation="5" floodColor="#facc15" floodOpacity="0.9" />
                 </filter>
 
-                {/* Vector rounded clip path for crisp, clean map borders */}
-                <clipPath id="mapRoundedClip">
+                {/* Feathered edge mask so the map image fades softly with rounded corners into the ocean backdrop */}
+                <filter id="edgeFeatherFilter" x="-20%" y="-20%" width="140%" height="140%">
+                  <feGaussianBlur stdDeviation="9" />
+                </filter>
+                <mask
+                  id="mapEdgeFadeMask"
+                  maskUnits="userSpaceOnUse"
+                  x="-50"
+                  y="-50"
+                  width={MAP_WIDTH + 100}
+                  height={MAP_HEIGHT + 100}
+                >
                   <rect
-                    x="4"
-                    y="4"
-                    width={MAP_WIDTH - 8}
-                    height={MAP_HEIGHT - 8}
-                    rx="26"
-                    ry="26"
+                    x="-50"
+                    y="-50"
+                    width={MAP_WIDTH + 100}
+                    height={MAP_HEIGHT + 100}
+                    fill="black"
                   />
-                </clipPath>
+                  <rect
+                    x="12"
+                    y="12"
+                    width={MAP_WIDTH - 24}
+                    height={MAP_HEIGHT - 24}
+                    rx="26"
+                    fill="white"
+                    filter="url(#edgeFeatherFilter)"
+                  />
+                </mask>
               </defs>
 
-              {/* HIGH-RES IN-GAME POKÉMON BRILLIANT DIAMOND / SHINING PEARL SINNOH TOWN MAP */}
+              {/* ACTUAL IN-GAME POKÉMON BRILLIANT DIAMOND / SHINING PEARL SINNOH TOWN MAP (Feathered Edges) */}
               <image
-                href="/bdsp-town-map.webp"
+                href="/bdsp-town-map.png"
                 x="0"
                 y="0"
                 width={MAP_WIDTH}
                 height={MAP_HEIGHT}
                 preserveAspectRatio="none"
-                clipPath="url(#mapRoundedClip)"
-                style={{
-                  imageRendering: "auto",
-                  maskImage: "radial-gradient(ellipse 98% 96% at 50% 50%, black 88%, transparent 100%)",
-                  WebkitMaskImage: "radial-gradient(ellipse 98% 96% at 50% 50%, black 88%, transparent 100%)",
-                }}
+                mask="url(#mapEdgeFadeMask)"
               />
 
           {/* IN-GAME CITY & TOWN LABELS: FLOATING ALL CAPS CARTOGRAPHIC TYPOGRAPHY WITH DARK SHADING */}
@@ -655,11 +675,11 @@ export default function SinnohSvgMap({
                 .replace("Fuego Ironworks", "Fuego")
                 .replace("Oreburgh Gate", "Ore. Gate")
                 .replace("Wayward Cave", "Wayward")
-                .replace("Trophy Garden", "Trophy Gdn")
+                .replace("Trophy Garden", "Trophy Garden")
                 .replace("Great Marsh", "Gt. Marsh")
                 .replace("Victory Road", "Victory Rd")
                 .replace("Stark Mountain", "Stark Mtn")
-                .replace("Eterna Forest", "Eterna For.")
+                .replace("Eterna Forest", "Eterna Forest")
                 .replace("Ravaged Path", "Ravaged")
                 .replace("Oreburgh Mine", "Ore. Mine")
                 .replace("Ruins of Alph", "Ruins")
