@@ -185,31 +185,34 @@ export default function SinnohSvgMap({
   const isMouseDownRef = useRef<boolean>(false);
   const dragStartPosRef = useRef<{ clientX: number; clientY: number }>({ clientX: 0, clientY: 0 });
 
-  // RAF (requestAnimationFrame) throttled pan updater to ensure smooth 60-120fps with zero redundant renders
+  // RAF (requestAnimationFrame) throttled transform updater to ensure smooth 60-120fps with zero redundant renders
   const rafIdRef = useRef<number | null>(null);
-  const pendingPanRef = useRef<{ x: number; y: number } | null>(null);
+  const pendingTransformRef = useRef<{ pan: { x: number; y: number }; zoom: number } | null>(null);
 
-  const schedulePan = useCallback((nextPan: { x: number; y: number }) => {
-    pendingPanRef.current = nextPan;
+  const scheduleTransform = useCallback((nextPan: { x: number; y: number }, nextZoom: number) => {
+    pendingTransformRef.current = { pan: nextPan, zoom: nextZoom };
     if (rafIdRef.current === null) {
       rafIdRef.current = requestAnimationFrame(() => {
-        if (pendingPanRef.current) {
-          setPan(pendingPanRef.current);
-          pendingPanRef.current = null;
+        if (pendingTransformRef.current) {
+          const { pan: p, zoom: z } = pendingTransformRef.current;
+          setPan(p);
+          setZoom(z);
+          pendingTransformRef.current = null;
         }
         rafIdRef.current = null;
       });
     }
   }, []);
 
-  const flushPendingPan = useCallback(() => {
+  const flushPendingTransform = useCallback(() => {
     if (rafIdRef.current !== null) {
       cancelAnimationFrame(rafIdRef.current);
       rafIdRef.current = null;
     }
-    if (pendingPanRef.current) {
-      setPan(pendingPanRef.current);
-      pendingPanRef.current = null;
+    if (pendingTransformRef.current) {
+      setPan(pendingTransformRef.current.pan);
+      setZoom(pendingTransformRef.current.zoom);
+      pendingTransformRef.current = null;
     }
   }, []);
 
@@ -277,8 +280,7 @@ export default function SinnohSvgMap({
         setIsWheelZooming(false);
       }, 140);
 
-      setZoom(newZoom);
-      schedulePan(clampPan(newPanX, newPanY, newZoom));
+      scheduleTransform(clampPan(newPanX, newPanY, newZoom), newZoom);
     };
 
     const preventGesture = (e: Event) => {
@@ -333,13 +335,14 @@ export default function SinnohSvgMap({
       if (touchState.mode === "pan" && e.touches.length === 1) {
         const dx = e.touches[0].clientX - touchState.startX;
         const dy = e.touches[0].clientY - touchState.startY;
-        if (Math.hypot(dx, dy) > 6) {
+        if (Math.hypot(dx, dy) > 5) {
           didDragRef.current = true;
           setIsDragging(true);
         }
-        schedulePan(clampPan(touchState.panStartX + dx, touchState.panStartY + dy, zoomRef.current));
+        scheduleTransform(clampPan(touchState.panStartX + dx, touchState.panStartY + dy, zoomRef.current), zoomRef.current);
       } else if (touchState.mode === "pinch" && e.touches.length === 2 && touchState.initialPinchDist > 0) {
         didDragRef.current = true;
+        setIsDragging(true);
         const t1 = e.touches[0];
         const t2 = e.touches[1];
         const currentDist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
@@ -351,13 +354,12 @@ export default function SinnohSvgMap({
         const scaleRatio = newZoom / touchState.initialZoom;
         const newPanX = touchState.pinchMidX - (touchState.pinchMidX - touchState.initialPanX) * scaleRatio;
         const newPanY = touchState.pinchMidY - (touchState.pinchMidY - touchState.initialPanY) * scaleRatio;
-        setZoom(newZoom);
-        schedulePan(clampPan(newPanX, newPanY, newZoom));
+        scheduleTransform(clampPan(newPanX, newPanY, newZoom), newZoom);
       }
     };
 
     const handleTouchEnd = (e: TouchEvent) => {
-      flushPendingPan();
+      flushPendingTransform();
       if (e.touches.length === 0) {
         touchState.mode = null;
         setIsDragging(false);
@@ -387,7 +389,7 @@ export default function SinnohSvgMap({
       el.removeEventListener("touchend", handleTouchEnd);
       el.removeEventListener("touchcancel", handleTouchEnd);
     };
-  }, [clampPan, schedulePan, flushPendingPan]);
+  }, [clampPan, scheduleTransform, flushPendingTransform]);
 
   const focusOnRoute = useCallback(
     (route: SinnohRoute, targetZoom = 2.4) => {
@@ -440,13 +442,13 @@ export default function SinnohSvgMap({
       }
       const rawX = e.clientX - dragStart.x;
       const rawY = e.clientY - dragStart.y;
-      schedulePan(clampPan(rawX, rawY, zoom));
+      scheduleTransform(clampPan(rawX, rawY, zoom), zoom);
     }
   };
 
   const handleMouseUp = () => {
     isMouseDownRef.current = false;
-    flushPendingPan();
+    flushPendingTransform();
     if (isDragging) {
       setIsDragging(false);
     }
@@ -562,10 +564,10 @@ export default function SinnohSvgMap({
             >
               <defs>
                 <filter id="selectedGlow" x="-35%" y="-35%" width="170%" height="170%">
-                  <feDropShadow dx="0" dy="0" stdDeviation="5" floodColor="#6366f1" floodOpacity="0.95" />
+                  <feDropShadow dx="0" dy="0" stdDeviation="4" floodColor="#6366f1" floodOpacity="0.9" />
                 </filter>
                 <filter id="searchGlow" x="-35%" y="-35%" width="170%" height="170%">
-                  <feDropShadow dx="0" dy="0" stdDeviation="6" floodColor="#facc15" floodOpacity="0.95" />
+                  <feDropShadow dx="0" dy="0" stdDeviation="5" floodColor="#facc15" floodOpacity="0.9" />
                 </filter>
 
                 {/* Feathered edge mask so the map image fades softly with rounded corners into the ocean backdrop */}
@@ -673,11 +675,11 @@ export default function SinnohSvgMap({
                 .replace("Fuego Ironworks", "Fuego")
                 .replace("Oreburgh Gate", "Ore. Gate")
                 .replace("Wayward Cave", "Wayward")
-                .replace("Trophy Garden", "Trophy Gdn")
+                .replace("Trophy Garden", "Trophy Garden")
                 .replace("Great Marsh", "Gt. Marsh")
                 .replace("Victory Road", "Victory Rd")
                 .replace("Stark Mountain", "Stark Mtn")
-                .replace("Eterna Forest", "Eterna For.")
+                .replace("Eterna Forest", "Eterna Forest")
                 .replace("Ravaged Path", "Ravaged")
                 .replace("Oreburgh Mine", "Ore. Mine")
                 .replace("Ruins of Alph", "Ruins")

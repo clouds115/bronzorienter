@@ -89,7 +89,7 @@ export default function PokemonDetailModal({
         <div className="p-5 max-h-[80vh] overflow-y-auto space-y-5">
           {loading || !detail ? (
             <div className="py-12 text-center text-slate-400 text-sm animate-pulse">
-              Fetching Pokédex data from FastAPI & PokeAPI...
+              Fetching Pokédex data from PokeAPI...
             </div>
           ) : (
             <>
