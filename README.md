@@ -1,4 +1,4 @@
-# Pokémon Brilliant Diamond — Interactive Sinnoh Route & Shiny Map
+# Bronzorienter - Pokémon Brilliant Diamond: Interactive Sinnoh Route Map
 
 An interactive **Next.js + FastAPI** web application for exploring the Sinnoh region in **Pokémon Brilliant Diamond**.
 
